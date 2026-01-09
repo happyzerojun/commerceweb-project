@@ -1,0 +1,33 @@
+spring:
+  # 데이터베이스 설정 (PostgreSQL)
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/commerceweb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:56678}
+    driver-class-name: org.postgresql.Driver
+
+  # JPA/Hibernate 설정
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  # ✅ Redis 설정 (도커 환경 대응)
+  data:
+    redis:
+      # 도커로 띄울 때는 'redis'라는 서비스 이름을 사용해야 합니다.
+      # 로컬에서 그냥 실행할 때를 대비해 기본값으로 localhost를 둡니다.
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+
+  # ✅ 캐시 설정
+  cache:
+    type: redis
+
+# ✅ JWT 설정 (Docker Compose에서 보내주는 환경변수와 매핑)
+jwt:
+  secret: ${JWT_SECRET:my_custom_secret_key_for_commerce_web_project_123456}
+  expiration: ${JWT_EXPIRATION:86400000}
