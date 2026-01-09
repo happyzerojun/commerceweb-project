@@ -12,7 +12,7 @@ const OrderListPage = () => {
   }, []);
 
   const fetchOrders = () => {
-    api.get('/orders/my')
+     api.get('/api/orders/my')
       .then(res => {
         setOrders(res.data);
         setLoading(false);
@@ -28,7 +28,7 @@ const OrderListPage = () => {
   const handleCancel = async (orderId) => {
     if (!window.confirm("정말 주문을 취소하시겠습니까?")) return;
     try {
-      await api.delete(`/orders/${orderId}`);
+      await api.delete(`/api/orders/${orderId}`);
       alert("주문이 취소되었습니다.");
       setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
     } catch (err) {

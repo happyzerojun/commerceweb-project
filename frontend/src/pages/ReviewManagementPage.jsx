@@ -28,7 +28,7 @@ const ReviewManagementPage = () => {
 
     const fetchProducts = async () => {
         try {
-            const res = await api.get('/products');
+            const res = await api.get('/api/products');
             setProducts(res.data);
         } catch (err) {
             console.error("상품 목록 로딩 실패", err);
@@ -40,9 +40,9 @@ const ReviewManagementPage = () => {
         try {
             let res;
             if (productIdFromUrl && productIdFromUrl !== 'undefined') {
-                res = await api.get(`/reviews/product/${productIdFromUrl}`);
+                res = await api.get(`/api/reviews/product/${productIdFromUrl}`);
             } else {
-                res = await api.get('/reviews');
+                res = await api.get('/api/reviews');
             }
             setReviews(res.data);
         } catch (err) {
@@ -76,7 +76,7 @@ const ReviewManagementPage = () => {
         };
 
         try {
-            await api.post('/reviews', reviewData);
+            await api.post('/api/reviews', reviewData);
             alert("리뷰가 등록되었습니다!");
             navigate(`/review-management?productId=${productIdFromUrl}`);
             fetchReviews();
@@ -104,7 +104,7 @@ const ReviewManagementPage = () => {
     const handleUpdate = async (reviewId) => {
         if (!editContent.trim()) return alert("내용을 입력해주세요.");
         try {
-            await api.put(`/reviews/${reviewId}`, {
+            await api.put(`/api/reviews/${reviewId}`, {
                 content: editContent,
                 rating: editRating
             });
@@ -119,7 +119,7 @@ const ReviewManagementPage = () => {
     const handleDelete = async (reviewId) => {
         if (!window.confirm("정말 삭제하시겠습니까?")) return;
         try {
-            await api.delete(`/reviews/${reviewId}`);
+            await api.delete(`/api/reviews/${reviewId}`);
             alert("삭제되었습니다.");
             fetchReviews();
         } catch (err) {

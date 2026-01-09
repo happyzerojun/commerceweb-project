@@ -16,7 +16,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 // ✅ 이 한 줄이 없으면 프론트엔드(5173 포트)에서 데이터를 못 가져옵니다.
-@CrossOrigin(origins = "http://localhost:5173")
+// ✅ 개발 서버(5173)와 도커 배포 서버(80) 둘 다 허용
+@CrossOrigin(origins = {"http://localhost:5173", "http://localhost"})
 public class ProductController {
 
     private final ProductService productService;
