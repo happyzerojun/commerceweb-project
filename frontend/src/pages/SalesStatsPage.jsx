@@ -16,7 +16,7 @@ const SalesStatsPage = () => {
             return;
         }
 
-        api.get('/sales/stats')
+        api.get('/api/sales/stats')
             .then(response => {
                 setStats(response.data || []);
                 setLoading(false);

@@ -13,7 +13,8 @@ const ProductPage = () => {
   const categories = ['전체', '가전', '의류', '식품'];
 
   useEffect(() => {
-    api.get('/products')
+    // ✅ 수정 1: /products -> /api/products 로 변경 (백엔드 경로와 일치시킴)
+    api.get('/api/products')
       .then(response => {
         setProducts(response.data);
         setFilteredProducts(response.data);
@@ -51,7 +52,8 @@ const ProductPage = () => {
     if (!window.confirm(`${productName} ${quantity}개를 구매하시겠습니까?`)) return;
 
     try {
-      await api.post('/orders', { productId, quantity });
+      // ✅ 수정 2: /orders -> /api/orders 로 변경 (백엔드 경로와 일치시킴)
+      await api.post('/api/orders', { productId, quantity });
       alert("주문이 성공적으로 완료되었습니다! 🎉");
       navigate('/orders');
     } catch (error) {
@@ -102,7 +104,6 @@ const ProductPage = () => {
               <div style={{ padding: '20px', textAlign: 'center' }}>
                 <h4 style={productNameStyle}>{product.name}</h4>
 
-                {/* ✅ 추가된 상품 설명 (description) */}
                 <p style={descriptionStyle}>{product.description || "간단한 상품 설명이 없습니다."}</p>
 
                 <p style={priceStyle}>{product.price.toLocaleString()}원</p>
@@ -130,7 +131,7 @@ const ProductPage = () => {
   );
 };
 
-// --- 스타일 객체들 (코드 정돈) ---
+// --- 스타일 객체들 (기존 그대로 유지) ---
 const categoryTabBarStyle = {
   display: 'flex',
   justifyContent: 'space-around',
@@ -170,13 +171,12 @@ const noImageStyle = { width: '100%', height: '100%', display: 'flex', alignItem
 
 const productNameStyle = { margin: '0 0 5px 0', fontSize: '1.3rem', color: '#333', fontWeight: 'bold' };
 
-// ✅ 설명(Description) 스타일
 const descriptionStyle = {
   margin: '0 0 10px 0',
   fontSize: '0.95rem',
-  color: '#666', // 약간 연한 회색으로 본문 느낌 제공
+  color: '#666',
   lineHeight: '1.4',
-  wordBreak: 'keep-all' // 한글 단어 깨짐 방지
+  wordBreak: 'keep-all'
 };
 
 const priceStyle = { color: '#00c73c', fontWeight: 'bold', fontSize: '1.5rem', margin: '5px 0' };
