@@ -1,0 +1,101 @@
+/* frontend/src/styles/RecommendationSection.css */
+
+/**
+ * 추천 섹션 스타일
+ */
+
+.recommendation-section {
+  background: linear-gradient(135deg, rgba(25, 118, 210, 0.05) 0%, rgba(25, 118, 210, 0.02) 100%);
+  padding: var(--space-48) var(--space-24);
+  border-radius: var(--radius-xl);
+  margin-bottom: var(--space-48);
+  border: 2px solid var(--color-primary-light);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 배경 장식 */
+.recommendation-section::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  right: -100px;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(25, 118, 210, 0.1) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.recommendation-section .section-header {
+  text-align: center;
+  margin-bottom: var(--space-40);
+  position: relative;
+  z-index: 1;
+}
+
+.recommendation-section .section-header h2 {
+  font-size: var(--font-size-3xl);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: var(--space-12);
+}
+
+.recommendation-section .section-subtitle {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+}
+
+/* ==========================================
+   로딩 상태
+   ========================================== */
+
+.recommendation-section .loading {
+  padding: var(--space-64);
+  text-align: center;
+}
+
+.recommendation-section .loading p {
+  color: var(--color-text-secondary);
+  margin-top: var(--space-16);
+}
+
+/* ==========================================
+   빈 상태
+   ========================================== */
+
+.recommendation-section .empty-state {
+  padding: var(--space-48);
+  text-align: center;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 2px dashed var(--color-border);
+}
+
+.recommendation-section .empty-state p {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-8);
+}
+
+.recommendation-section .empty-hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-disabled);
+}
+
+/* ==========================================
+   반응형
+   ========================================== */
+
+@media (max-width: 768px) {
+  .recommendation-section {
+    padding: var(--space-32) var(--space-16);
+    margin-bottom: var(--space-32);
+  }
+
+  .recommendation-section .section-header h2 {
+    font-size: var(--font-size-2xl);
+  }
+}
