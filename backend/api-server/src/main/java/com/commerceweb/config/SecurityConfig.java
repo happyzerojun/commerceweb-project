@@ -41,6 +41,10 @@ public class SecurityConfig {
                         // ✅ CORS 해결을 위해 OPTIONS 요청은 무조건 허용 (Preflight 해결)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
+
+                        // 👇 [추가됨] 회원가입(/signup) 요청 허용
+                        .requestMatchers("/signup").permitAll()
+
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/sales/**").permitAll()
@@ -64,12 +68,17 @@ public class SecurityConfig {
         config.setAllowCredentials(true);
 
         // ✅ AWS IP와 포트 번호가 포함된 모든 조합을 허용하도록 수정
+        // ✅ 수정됨: 프론트엔드(80포트)와 로컬 개발 환경을 확실하게 허용
         config.setAllowedOriginPatterns(Arrays.asList(
-                "http://localhost:*",
-                "http://13.236.117.206",
+                "http://localhost",       // 프론트엔드 (기본 포트 80은 생략 가능하지만 명시)
+                "http://localhost:80",    // 프론트엔드 (Docker 80포트)
+                "http://localhost:3000",  // 로컬 React 개발용 (혹시 몰라 추가)
+                "http://localhost:8080",  // 백엔드 Swagger 등 접근용
+                "http://127.0.0.1:80",    // IP로 접근하는 경우
+                "http://127.0.0.1:8080",
+                "http://13.236.117.206",  // 기존 AWS IP 유지
                 "http://13.236.117.206:80",
-                "http://13.236.117.206:8080",
-                "*" // 테스트 기간 동안 모든 출처 허용 (배포 확인용)
+                "http://13.236.117.206:8080"
         ));
 
         config.addAllowedMethod("*"); // GET, POST, PUT, DELETE, OPTIONS 모두 허용
