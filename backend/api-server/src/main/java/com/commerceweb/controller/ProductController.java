@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/products")
+@RequestMapping({"/api/products", "/products"})
 @RequiredArgsConstructor
 @Slf4j
 // ✅ 이 한 줄이 없으면 프론트엔드(5173 포트)에서 데이터를 못 가져옵니다.

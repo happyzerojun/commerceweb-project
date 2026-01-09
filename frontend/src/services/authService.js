@@ -2,11 +2,13 @@
 
 import axios from 'axios';
 
+// 백엔드 API 기본 주소 (컨텍스트 패스 포함하지 않음)
 const API_URL = 'http://localhost:8080';
 
 export const authService = {
     signup: async (email, password, name, role) => {
-        return axios.post(`${API_URL}/signup`, {
+        // ✅ 수정됨: /signup -> /api/auth/signup
+        return axios.post(`${API_URL}/api/auth/signup`, {
             email,
             password,
             name,
@@ -15,7 +17,8 @@ export const authService = {
     },
 
     login: async (email, password) => {
-        return axios.post(`${API_URL}/login`, {
+        // ✅ 수정됨: /login -> /api/auth/login
+        return axios.post(`${API_URL}/api/auth/login`, {
             email,
             password
         });
