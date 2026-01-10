@@ -35,8 +35,15 @@ export default function LoginPage() {
                 formData.password
             );
 
-            const { token, userId, email, name } = response.data;
-            login({ userId, email, name }, token);
+            // ✅ 수정: 백엔드에서 받은 데이터에서 role도 꺼내야 합니다!
+            // const { token, userId, email, name } = response.data; <-- 기존 코드 (role 누락)
+
+            // 🔥 수정된 코드: role을 포함해서 가져오거나, 통째로 넘기기
+            const { token, userId, email, name, role } = response.data;
+
+            // role을 포함해서 저장
+            login({ userId, email, name, role }, token);
+
             navigate('/');
 
         } catch (err) {
@@ -46,6 +53,7 @@ export default function LoginPage() {
             setLoading(false);
         }
     };
+
 
     return (
         <div className="auth-container">

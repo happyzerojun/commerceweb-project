@@ -131,7 +131,7 @@ const ProductPage = () => {
         )}
       </div>
 
-      <button onClick={() => navigate('/')} style={homeBtnStyle}>🏠 홈으로</button>
+      <button onClick={() => navigate('/')} style={homeBtnStyle}>🏠 홈으로 돌아가기</button>
 
       {/* ✅ 수정된 모달 디자인 (네이버 스타일) */}
       {showModal && (
@@ -195,8 +195,7 @@ const priceStyle = { color: '#000', fontWeight: '800', fontSize: '1.4rem', margi
 const qtySectionStyle = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', margin: '15px 0', padding: '10px 0', borderTop: '1px solid #f2f2f2' };
 const qtyBtnStyle = { width: '32px', height: '32px', borderRadius: '50%', border: '1px solid #ddd', backgroundColor: '#fff', color: '#333', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
 const orderBtnStyle = { backgroundColor: THEME_COLOR, color: 'white', border: 'none', padding: '16px', borderRadius: '6px', cursor: 'pointer', width: '100%', fontWeight: 'bold', fontSize: '1.1rem' };
-const homeBtnStyle = { padding: '12px 30px', borderRadius: '25px', border: '1px solid #ddd', backgroundColor: '#fff', color: '#333', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' };
-
+const homeBtnStyle = { padding: '12px 40px', borderRadius: '30px', border: '2px solid #00c73c', cursor: 'pointer', backgroundColor: '#fff', color: '#00c73c', fontSize: '1rem', fontWeight: 'bold', transition: 'all 0.2s' };
 // ✅ 모달 스타일 (네이버 스타일 적용)
 const modalOverlayStyle = {
   position: 'fixed',
