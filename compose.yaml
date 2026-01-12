@@ -1,17 +1,14 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
     container_name: commerceweb-postgres
-    restart: always  # 서버 재부팅 시 자동 실행
+    restart: always
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    # 외부 노출이 필요 없다면 포트 매핑을 제거하거나 내부용으로만 유지하세요.
     ports:
       - "5433:5432"
 
@@ -42,6 +39,11 @@ services:
       - redis
     ports:
       - "8080:8080"
+    develop:                        # ✅ backend에만 watch
+      watch:
+        - action: rebuild
+          path: ./backend/api-server/src
+          target: /app/src
 
   frontend:
     build:
@@ -53,6 +55,18 @@ services:
       - backend
     ports:
       - "80:80"
+    develop:                        # ✅ frontend에만 watch
+      watch:
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
+          ignore:
+            - node_modules/
+        - action: sync
+          path: ./frontend/public
+          target: /app/public
+        - action: rebuild
+          path: ./frontend/package.json
 
 volumes:
   postgres-data:
