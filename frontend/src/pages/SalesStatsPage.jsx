@@ -317,7 +317,7 @@ const SalesStatsPage = () => {
                         style={{
                             padding: '14px 50px',
                             backgroundColor: theme.accentColor,
-                            color: '#ffffff',
+                            color: theme.accentColor,
                             border: `2px solid ${theme.accentColor}`,
                             borderRadius: '8px',
                             cursor: 'pointer',

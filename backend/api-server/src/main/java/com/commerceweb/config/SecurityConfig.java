@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -31,11 +32,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
                 // ✅ CORS 설정을 가장 먼저 적용
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .formLogin(form -> form.disable())
-                .httpBasic(basic -> basic.disable())
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // ✅ CORS 해결을 위해 OPTIONS 요청은 무조건 허용 (Preflight 해결)
@@ -81,8 +82,21 @@ public class SecurityConfig {
                 "http://13.236.117.206:8080"
         ));
 
-        config.addAllowedMethod("*"); // GET, POST, PUT, DELETE, OPTIONS 모두 허용
-        config.addAllowedHeader("*");
+        // 🔴 [개선됨] Wildcard (*) 제거 → 필요한 메서드만 명시
+        config.addAllowedMethod(HttpMethod.GET);     // 조회
+        config.addAllowedMethod(HttpMethod.POST);    // 생성
+        config.addAllowedMethod(HttpMethod.PUT);     // 전체 수정
+        config.addAllowedMethod(HttpMethod.PATCH);   // 부분 수정
+        config.addAllowedMethod(HttpMethod.DELETE);  // 삭제
+        config.addAllowedMethod(HttpMethod.OPTIONS); // CORS Preflight
+
+        // 🔴 [2단계 개선] Wildcard (*) 제거 → JWT + REST API에 필요한 헤더만 명시
+        config.addAllowedHeader("Authorization");   // JWT 토큰 (필수!)
+        config.addAllowedHeader("Content-Type");    // JSON 요청/응답
+        config.addAllowedHeader("Accept");          // 응답 형식 지정
+        config.addAllowedHeader("X-Requested-With"); // AJAX 요청 식별
+        config.addAllowedHeader("Origin");          // CORS Origin
+
         config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
