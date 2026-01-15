@@ -11,93 +11,118 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 /**
- * JWT 인증 필터: 모든 요청에서 JWT 토큰을 검증하고 사용자를 인증 상태로 설정
+ * JWT 인증 필터
+ * - 클라이언트 요청 헤더에서 JWT 토큰을 추출하고 검증합니다.
+ * - 검증 성공 시, 해당 사용자를 인증된 상태로 SecurityContext에 등록합니다.
  */
-@Component  // Spring Bean으로 등록
+@Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final JwtProvider jwtProvider;  // JWT 토큰 검증 및 추출
-    private final UserRepository userRepository;  // 사용자 DB 조회
+    private final JwtProvider jwtProvider;
+    private final UserRepository userRepository;
 
     public JwtAuthenticationFilter(JwtProvider jwtProvider, UserRepository userRepository) {
         this.jwtProvider = jwtProvider;
         this.userRepository = userRepository;
     }
 
+    /**
+     * 필터 로직 수행 (모든 요청마다 실행됨)
+     */
     @Override
     protected void doFilterInternal(
-            @Nonnull HttpServletRequest request,  // Null 불가
-            @Nonnull HttpServletResponse response,  // Null 불가
-            @Nonnull FilterChain filterChain  // Null 불가
+            @Nonnull HttpServletRequest request,
+            @Nonnull HttpServletResponse response,
+            @Nonnull FilterChain filterChain
     ) throws ServletException, IOException {
 
-        String authHeader = request.getHeader("Authorization");  // Authorization 헤더 추출
+        // 1. Authorization 헤더 추출
+        String authHeader = request.getHeader("Authorization");
 
-        // 이건 Bearer 토큰(JWT) 방식이다"라고 명시, OAuth 2.0 표준이고, 여러 인증 방식을 구분하기 위함
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {  // 토큰 형식 확인
-            String token = authHeader.substring(7);  // "Bearer " 제거
+        // 2. 헤더가 존재하고 "Bearer "로 시작하는지 확인
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7); // "Bearer " 제거 후 순수 토큰만 추출
 
-            if (jwtProvider.validateToken(token)) {  // JWT 토큰 유효성 검증
+            // 3. JWT 토큰 유효성 검증
+            if (jwtProvider.validateToken(token)) {
                 try {
-                    String userIdStr = jwtProvider.extractUserId(token);  // 토큰에서 userId 추출
-                    Long userId = Long.parseLong(userIdStr);  // String → Long 변환
+                    // 4. 토큰에서 사용자 ID(PK) 추출
+                    String userIdStr = jwtProvider.extractUserId(token);
+                    Long userId = Long.parseLong(userIdStr);
 
-                    User user = userRepository.findById(userId).orElse(null);  // DB에서 사용자 조회
+                    // 5. DB에서 사용자 조회 (토큰 위조 방지 및 최신 정보 로드)
+                    User user = userRepository.findById(userId).orElse(null);
 
-                    if (user != null) {  // 사용자가 존재하면
-                        SecurityContextHolder.getContext().setAuthentication(
-                                createAuthenticationWithDetails(user, request)  // 인증 토큰 생성 + 설정 + 저장
+                    if (user != null) {
+                        // ✅ [핵심 로직] DB User 엔티티를 Spring Security 표준인 UserDetails로 변환
+                        // 이 과정에서 권한 이름 포맷(ROLE_XXX)을 맞추어 403 에러를 방지함
+                        UserDetails userDetails = createSpringSecurityUser(user);
+
+                        // 6. 인증 토큰 생성 (Principal에 UserDetails 객체 저장)
+                        // - Principal: UserDetails (컨트롤러에서 @AuthenticationPrincipal로 받을 객체)
+                        // - Credentials: null (이미 JWT로 인증했으므로 비밀번호 필요 없음)
+                        // - Authorities: 권한 목록 (ROLE_CUSTOMER, ROLE_SELLER 등)
+                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities()
                         );
 
-                        System.out.println("✅ [DEBUG] 인증 성공: " + user.getEmail());
-                    } else {
-                        System.out.println("❌ [DEBUG] DB에 유저 없음 (ID: " + userId + ")");
+                        // 7. 요청의 부가 정보(IP 등) 설정
+                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                        // 8. SecurityContext에 인증 객체 저장 -> "로그인 성공" 처리 완료
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
                     }
                 } catch (Exception e) {
-                    System.out.println("❌ [DEBUG] 토큰 처리 중 오류: " + e.getMessage());
+                    // 토큰 파싱이나 DB 조회 중 에러 발생 시 로그만 남기고 다음 필터로 진행 (인증 실패 상태 유지)
+                    logger.error("Could not set user authentication in security context", e);
                 }
-            } else {
-                System.out.println("❌ [DEBUG] 유효하지 않은 토큰");
             }
         }
 
-        filterChain.doFilter(request, response);  // 다음 필터로 요청 전달
+        // 9. 다음 필터 체인으로 요청 넘김 (필수)
+        filterChain.doFilter(request, response);
     }
 
     /**
-     * 인증 토큰 생성 + 요청 정보 설정 (메서드 추출)
-     * @param user 사용자 정보
-     * @param request HTTP 요청 객체
-     * @return 설정이 완료된 인증 토큰
+     * [Helper Method] DB User 엔티티 -> Spring Security UserDetails 변환
+     *
+     * 역할:
+     * 1. DB의 Role Enum(예: SELLER)을 Spring Security가 인식하는 표준 포맷("ROLE_SELLER")으로 변환
+     * 2. SecurityConfig의 .hasRole("SELLER") 설정과 매칭되도록 보장
+     * 3. 403 Forbidden 에러의 주원인이었던 권한 이름 불일치 문제를 해결함
      */
-    private static UsernamePasswordAuthenticationToken createAuthenticationWithDetails(
-            User user,  // 사용자 정보
-            HttpServletRequest request  // HTTP 요청
-    ) {
-        // "ROLE_" 접두사가 필수 (Spring Security 규칙) 실제 DB의 user.getRole() = "CUSTOMER"라고 되어있으면, 여기서 "ROLE_CUSTOMER"로 변환하는 것
-        List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"));  // 권한 생성
+    private UserDetails createSpringSecurityUser(User user) {
+        // 1. DB에서 Role 가져오기 (없으면 기본값 CUSTOMER)
+        String rawRole = user.getRole() != null ? user.getRole().name() : "CUSTOMER";
 
-        // 이 사람이 누구이고, 어떤 권한을 가지고 있는가
-        //     *   1. principal (주체): 사용자 식별 정보
-        //     *   2. credentials (자격증명): 비밀번호
-        //     *   3. authorities (권한): 할 수 있는 것들
-        UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(  // 인증 토큰 생성
-                user.getEmail(),  // principal: 사용자 이메일
-                null,  // credentials: JWT이므로 null
-                authorities  // 권한 리스트
-                // 비밀번호는 최대한 적게 다루어야 함 null로 지정함으로서 실수로 비밀번호를 출력하거나, 직렬화해서 외부로 내보낼 위험이 줄어듦
+        // 2. 안전장치: 만약 이미 "ROLE_"이 붙어있다면 제거 (중복 방지: ROLE_ROLE_SELLER 방지)
+        if (rawRole.startsWith("ROLE_")) {
+            rawRole = rawRole.substring(5);
+        }
+
+        // 3. 표준 접두사("ROLE_")를 붙여서 최종 권한 이름 생성
+        String finalRoleName = "ROLE_" + rawRole;
+
+        // 4. 권한 객체 리스트 생성
+        List<SimpleGrantedAuthority> authorities = Collections.singletonList(new SimpleGrantedAuthority(finalRoleName));
+
+        // 5. UserDetails 객체 반환
+        return new org.springframework.security.core.userdetails.User(
+                user.getEmail(), // username: 컨트롤러에서 Principal.getName()으로 꺼낼 값
+                "",              // password: 필요 없음
+                authorities      // authorities: 권한 정보
         );
-
-        token.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));  // 요청 상세 정보 설정
-
-        return token;  // 설정 완료된 토큰 반환
     }
 }
