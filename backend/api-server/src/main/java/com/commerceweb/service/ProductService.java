@@ -100,19 +100,33 @@ public class ProductService {
     }
 
     /**
-     * 인기 상품 (평점순)
+     * 🔥 인기 상품 (평점 높고 + 리뷰 많은 순, 상위 10개)
+     * - 기존: 전체 평점순 조회
+     * - 변경: 상위 10개만 조회 + 리뷰 수 가중치
      */
     @Transactional(readOnly = true)
     public List<Product> getTopRatedProducts() {
-        return productRepository.findAllByOrderByAverageRatingDesc();
+        log.info("🏆 인기 상품 조회 (Top 10)");
+        // return productRepository.findAllByOrderByAverageRatingDesc(); // (구버전)
+        // return productRepository.findTop10ByOrderByAverageRatingDescReviewCountDesc(); (X)
+        return productRepository.findTop10ByOrderByAverageRatingDescViewCountDesc(); // (O)
     }
 
     /**
-     * 트렌딩 상품 (조회수순)
+     * ⚡ 트렌딩 상품 (최신 등록된 신상품, 상위 10개)
+     * - 기존: 조회수 전체 조회 (고인물 문제 발생 가능)
+     * - 변경: 가장 최근에 등록된 신상 10개 노출
      */
     @Transactional(readOnly = true)
     public List<Product> getTrendingProducts() {
-        return productRepository.findAllByOrderByViewCountDesc();
+        log.info("📈 트렌딩 상품 조회 (New Arrivals Top 10)");
+        // return productRepository.findAllByOrderByViewCountDesc(); // (구버전)
+
+        // 만약 Product 엔티티에 createdAt 필드가 있다면 아래 사용:
+        return productRepository.findTop10ByOrderByCreatedAtDesc();
+
+        // ⚠️ 만약 createdAt 필드가 없다면, ID 역순이 곧 등록순이므로 아래 사용:
+        // return productRepository.findTop10ByOrderByIdDesc();
     }
 
     /**

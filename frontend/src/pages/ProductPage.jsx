@@ -3,17 +3,37 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 const ProductPage = () => {
-    const [products, setProducts] = useState([]);
-    const [filteredProducts, setFilteredProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [quantities, setQuantities] = useState({});
-    const [selectedCategory, setSelectedCategory] = useState('전체');
-    const [showModal, setShowModal] = useState(false);
-    const [isDarkMode, setIsDarkMode] = useState(false);
+    // -------------------------------------------------------------------------
+    // 1. 상태 관리 (State Management)
+    // -------------------------------------------------------------------------
+    const [products, setProducts] = useState([]);         // 전체 상품 목록 (기본 캐시용)
+    const [filteredProducts, setFilteredProducts] = useState([]); // 실제 화면에 보여줄 상품 목록
+    const [loading, setLoading] = useState(true);         // 로딩 상태
+    const [quantities, setQuantities] = useState({});     // 상품별 구매 수량
+    const [selectedCategory, setSelectedCategory] = useState('전체'); // 현재 선택된 탭
+    const [showModal, setShowModal] = useState(false);    // 주문 완료 모달 표시 여부
+    const [isDarkMode, setIsDarkMode] = useState(false);  // 다크 모드 상태
     const navigate = useNavigate();
 
-    const categories = ['전체', '가전', '의류', '식품'];
+    // -------------------------------------------------------------------------
+    // 2. 상수 데이터 (Constants)
+    // -------------------------------------------------------------------------
+    // 탭 카테고리 목록 (인기/트렌딩 추가)
+    const categories = ['전체', '인기 상품', '트렌딩 상품', '가전', '의류', '식품'];
 
+    // 탭별 설명 문구
+    const categoryDescriptions = {
+        '전체': '영무마켓의 모든 상품을 한눈에 확인해보세요.',
+        '인기 상품': '🔥 고객님들에게 가장 많은 사랑을 받은 베스트셀러 TOP 3!',
+        '트렌딩 상품': '⚡ 요즘 가장 핫한 급상승 트렌드 상품을 모았습니다.',
+        '가전': '📱 생활을 편리하게 만드는 최신 스마트 가전입니다.',
+        '의류': '👕 나만의 스타일을 완성할 이번 시즌 트렌드 룩.',
+        '식품': '🍎 산지의 신선함을 그대로 담은 맛있는 먹거리.'
+    };
+
+    // -------------------------------------------------------------------------
+    // 3. 다크 모드 감지 (Effects)
+    // -------------------------------------------------------------------------
     useEffect(() => {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
         setIsDarkMode(mediaQuery.matches);
@@ -24,12 +44,20 @@ const ProductPage = () => {
         return () => mediaQuery.removeEventListener('change', listener);
     }, []);
 
+    // -------------------------------------------------------------------------
+    // 4. 데이터 로딩 (Data Fetching)
+    // -------------------------------------------------------------------------
+    // 초기 로딩: 전체 상품 목록을 가져옴 (기본 데이터)
     useEffect(() => {
         api.get('/api/products')
             .then(response => {
                 setProducts(response.data);
-                setFilteredProducts(response.data);
+                // 초기 화면은 '전체' 탭이므로 전체 데이터 표시
+                if (selectedCategory === '전체') {
+                    setFilteredProducts(response.data);
+                }
 
+                // 수량 초기화 (각 상품 1개)
                 const initialQuantities = {};
                 response.data.forEach(product => {
                     initialQuantities[product.id] = 1;
@@ -41,16 +69,54 @@ const ProductPage = () => {
                 console.error('상품 로딩 에러:', error);
                 setLoading(false);
             });
-    }, []);
+    }, []); // 최초 1회만 실행
 
+    // 탭 변경 시 데이터 처리
     useEffect(() => {
+        setLoading(true);
+
+        // A. '전체' 탭: 이미 로드된 products 사용
         if (selectedCategory === '전체') {
             setFilteredProducts(products);
-        } else {
-            setFilteredProducts(products.filter(p => p.category === selectedCategory));
+            setLoading(false);
+        }
+        // B. '인기 상품' 탭: 별도 API 호출
+        else if (selectedCategory === '인기 상품') {
+            api.get('/api/products/trending/popular')
+                .then(response => {
+                    setFilteredProducts(response.data);
+                    setLoading(false);
+                })
+                .catch(err => {
+                    console.error(err);
+                    setFilteredProducts([]);
+                    setLoading(false);
+                });
+        }
+        // C. '트렌딩 상품' 탭: 별도 API 호출
+        else if (selectedCategory === '트렌딩 상품') {
+            api.get('/api/products/trending/trending')
+                .then(response => {
+                    setFilteredProducts(response.data);
+                    setLoading(false);
+                })
+                .catch(err => {
+                    console.error(err);
+                    setFilteredProducts([]);
+                    setLoading(false);
+                });
+        }
+        // D. 일반 카테고리 탭: 클라이언트 필터링
+        else {
+            const filtered = products.filter(p => p.category === selectedCategory);
+            setFilteredProducts(filtered);
+            setLoading(false);
         }
     }, [selectedCategory, products]);
 
+    // -------------------------------------------------------------------------
+    // 5. 이벤트 핸들러 (Event Handlers)
+    // -------------------------------------------------------------------------
     const updateQuantity = (productId, delta) => {
         setQuantities(prev => ({
             ...prev,
@@ -80,6 +146,53 @@ const ProductPage = () => {
         setShowModal(false);
     };
 
+    // -------------------------------------------------------------------------
+    // 6. 헬퍼 함수 (Helpers)
+    // -------------------------------------------------------------------------
+    // 순위 배지 렌더링 (인기/트렌딩 탭에서 1~3위만 표시)
+    const renderRankBadge = (index) => {
+        const isRankedCategory = ['인기 상품', '트렌딩 상품'].includes(selectedCategory);
+
+        if (!isRankedCategory) return null;
+        if (index > 2) return null; // 4위부터는 배지 없음
+
+        const badges = [
+            { color: '#FFD700', icon: '🥇', label: '1위' }, // Gold
+            { color: '#C0C0C0', icon: '🥈', label: '2위' }, // Silver
+            { color: '#CD7F32', icon: '🥉', label: '3위' }  // Bronze
+        ];
+
+        const badge = badges[index];
+
+        return (
+            <div
+                style={{
+                    position: 'absolute',
+                    top: '10px',
+                    left: '10px',
+                    backgroundColor: badge.color,
+                    color: '#fff',
+                    padding: '6px 10px',
+                    borderRadius: '20px',
+                    fontWeight: '800',
+                    fontSize: '0.85rem',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
+                    zIndex: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                }}
+            >
+                <span style={{ fontSize: '1rem' }}>{badge.icon}</span>
+                <span>{badge.label}</span>
+            </div>
+        );
+    };
+
+    // -------------------------------------------------------------------------
+    // 7. 스타일 및 테마 (Styles)
+    // -------------------------------------------------------------------------
     if (loading) {
         return (
             <div style={{ padding: '20px', textAlign: 'center', color: isDarkMode ? '#fff' : '#333' }}>
@@ -99,7 +212,8 @@ const ProductPage = () => {
         shadow: isDarkMode ? '0 2px 4px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.08)',
         btnBg: isDarkMode ? '#262626' : '#f5f5f5',
         btnBorder: isDarkMode ? '#444' : '#d9d9d9',
-        categoryActive: '#03C75A'
+        categoryActive: '#03C75A',
+        sectionBg: isDarkMode ? '#1f1f1f' : '#f0f4f8'
     };
 
     return (
@@ -118,7 +232,7 @@ const ProductPage = () => {
                 </h1>
             </div>
 
-            {/* 카테고리 탭 */}
+            {/* 카테고리 탭 (가로 스크롤) */}
             <div
                 style={{
                     display: 'flex',
@@ -126,7 +240,9 @@ const ProductPage = () => {
                     borderBottom: `2px solid ${theme.border}`,
                     position: 'sticky',
                     top: '0',
-                    zIndex: 90
+                    zIndex: 90,
+                    overflowX: 'auto',
+                    whiteSpace: 'nowrap'
                 }}
             >
                 {categories.map(cat => (
@@ -142,13 +258,41 @@ const ProductPage = () => {
                             borderBottom:
                                 selectedCategory === cat ? `3px solid ${theme.categoryActive}` : '3px solid transparent',
                             transition: 'all 0.2s ease',
-                            flex: 1,
-                            textAlign: 'center'
+                            flex: '0 0 auto',
+                            textAlign: 'center',
+                            minWidth: '80px'
                         }}
                     >
                         {cat}
                     </div>
                 ))}
+            </div>
+
+            {/* 현재 섹션 설명 영역 */}
+            <div
+                style={{
+                    backgroundColor: theme.sectionBg,
+                    padding: '25px 20px',
+                    textAlign: 'center',
+                    borderBottom: `1px solid ${theme.border}`
+                }}
+            >
+                <h2 style={{
+                    margin: '0 0 8px 0',
+                    fontSize: '1.4rem',
+                    fontWeight: '800',
+                    color: theme.textPrimary
+                }}>
+                    {selectedCategory}
+                </h2>
+                <p style={{
+                    margin: '0',
+                    fontSize: '0.95rem',
+                    color: theme.textSecondary,
+                    lineHeight: '1.5'
+                }}>
+                    {categoryDescriptions[selectedCategory] || '상품을 확인해보세요.'}
+                </p>
             </div>
 
             {/* 상품 리스트 */}
@@ -163,7 +307,7 @@ const ProductPage = () => {
                 <div style={{ width: '100%', maxWidth: '600px' }}>
                     {filteredProducts.length > 0 ? (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
-                            {filteredProducts.map(product => (
+                            {filteredProducts.map((product, index) => (
                                 <div
                                     key={product.id}
                                     style={{
@@ -173,10 +317,11 @@ const ProductPage = () => {
                                         flexDirection: 'column',
                                         overflow: 'hidden',
                                         border: `1px solid ${theme.border}`,
-                                        boxShadow: theme.shadow
+                                        boxShadow: theme.shadow,
+                                        position: 'relative' // 배지 위치 기준점
                                     }}
                                 >
-                                    {/* ✅ 수정된 이미지 컨테이너 */}
+                                    {/* 상품 이미지 영역 */}
                                     <div
                                         style={{
                                             width: '100%',
@@ -186,9 +331,13 @@ const ProductPage = () => {
                                             overflow: 'hidden',
                                             display: 'flex',
                                             alignItems: 'center',
-                                            justifyContent: 'center'
+                                            justifyContent: 'center',
+                                            position: 'relative' // 이미지 위 배지 배치용
                                         }}
                                     >
+                                        {/* 🏆 순위 배지 표시 (조건부 렌더링) */}
+                                        {renderRankBadge(index)}
+
                                         {product.imageUrl ? (
                                             <img
                                                 src={product.imageUrl}
@@ -398,7 +547,7 @@ const ProductPage = () => {
                                 onClick={handleGoToOrders}
                                 style={{
                                     backgroundColor: theme.bgCard,
-                                    color: '#000',
+                                    color: theme.textPrimary,
                                     border: `1px solid ${theme.border}`,
                                     padding: '14px',
                                     borderRadius: '6px',
