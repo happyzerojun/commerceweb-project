@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import api from '../services/api'; // Axios 인스턴스 (JWT 토큰 헤더 포함 필수)
 
 const ProductPage = () => {
     // -------------------------------------------------------------------------
@@ -18,12 +18,13 @@ const ProductPage = () => {
     // -------------------------------------------------------------------------
     // 2. 상수 데이터 (Constants)
     // -------------------------------------------------------------------------
-    // 탭 카테고리 목록 (인기/트렌딩 추가)
-    const categories = ['전체', '인기 상품', '트렌딩 상품', '가전', '의류', '식품'];
+    // [변경] '나만의 추천' 카테고리를 추가했습니다.
+    const categories = ['전체', '나만의 추천', '인기 상품', '트렌딩 상품', '가전', '의류', '식품'];
 
-    // 탭별 설명 문구
+    // [변경] 탭별 설명 문구 추가
     const categoryDescriptions = {
         '전체': '영무마켓의 모든 상품을 한눈에 확인해보세요.',
+        '나만의 추천': '✨ 고객님의 취향을 분석하여 AI가 엄선한 추천 상품입니다.', // 추가된 설명
         '인기 상품': '🔥 고객님들에게 가장 많은 사랑을 받은 베스트셀러 TOP 3!',
         '트렌딩 상품': '⚡ 요즘 가장 핫한 급상승 트렌드 상품을 모았습니다.',
         '가전': '📱 생활을 편리하게 만드는 최신 스마트 가전입니다.',
@@ -71,7 +72,7 @@ const ProductPage = () => {
             });
     }, []); // 최초 1회만 실행
 
-    // 탭 변경 시 데이터 처리
+    // 탭 변경 시 데이터 처리 (API 연동 핵심 로직)
     useEffect(() => {
         setLoading(true);
 
@@ -80,7 +81,29 @@ const ProductPage = () => {
             setFilteredProducts(products);
             setLoading(false);
         }
-        // B. '인기 상품' 탭: 별도 API 호출
+        // [추가] B. '나만의 추천' 탭: 백엔드 RecommendationController 호출
+        else if (selectedCategory === '나만의 추천') {
+            // RecommendationController.java의 @GetMapping("/recommendations") 호출
+            api.get('/api/recommendations', { params: { topN: 5 } })
+                .then(response => {
+                    // 백엔드 반환 타입: RecommendationResponse { products: [...] }
+                    // 따라서 response.data가 아니라 response.data.products를 써야 함
+                    if (response.data && response.data.products) {
+                        setFilteredProducts(response.data.products);
+                    } else {
+                        setFilteredProducts([]);
+                    }
+                    setLoading(false);
+                })
+                .catch(err => {
+                    console.error("추천 시스템 에러:", err);
+                    // 로그인하지 않았거나 에러 발생 시 빈 배열 처리 혹은 안내 메시지
+                    alert("로그인이 필요한 서비스이거나, 추천 데이터를 불러오지 못했습니다.");
+                    setFilteredProducts([]);
+                    setLoading(false);
+                });
+        }
+        // C. '인기 상품' 탭
         else if (selectedCategory === '인기 상품') {
             api.get('/api/products/trending/popular')
                 .then(response => {
@@ -93,7 +116,7 @@ const ProductPage = () => {
                     setLoading(false);
                 });
         }
-        // C. '트렌딩 상품' 탭: 별도 API 호출
+        // D. '트렌딩 상품' 탭
         else if (selectedCategory === '트렌딩 상품') {
             api.get('/api/products/trending/trending')
                 .then(response => {
@@ -106,7 +129,7 @@ const ProductPage = () => {
                     setLoading(false);
                 });
         }
-        // D. 일반 카테고리 탭: 클라이언트 필터링
+        // E. 일반 카테고리 탭: 클라이언트 필터링
         else {
             const filtered = products.filter(p => p.category === selectedCategory);
             setFilteredProducts(filtered);
@@ -151,6 +174,7 @@ const ProductPage = () => {
     // -------------------------------------------------------------------------
     // 순위 배지 렌더링 (인기/트렌딩 탭에서 1~3위만 표시)
     const renderRankBadge = (index) => {
+        // [수정] 나만의 추천도 순위를 매길지 결정 (여기선 제외하고 인기/트렌딩만 표시)
         const isRankedCategory = ['인기 상품', '트렌딩 상품'].includes(selectedCategory);
 
         if (!isRankedCategory) return null;

@@ -34,7 +34,7 @@ public class ProductController {
     /**
      * 상품 목록 조회 및 검색 API
      * <p>
-     * GET /api/products?category=electronics&name=iphone
+     * GET /api/products?category=electronics&name=apple
      * </p>
      *
      * @param category 카테고리 필터 (선택 사항, null일 경우 전체 조회)

@@ -8,6 +8,8 @@ import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import lombok.Data;
 import lombok.Builder;
+import java.io.Serial;
+import java.io.Serializable;
 
 @Entity
 @Table(name = "products")
@@ -15,7 +17,10 @@ import lombok.Builder;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Product {
+public class Product implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,15 +41,12 @@ public class Product {
     @Column(name = "category", length = 50)
     private String category;
 
-    @Builder.Default
     @Column(name = "view_count")
     private Long viewCount = 0L;
 
-    @Builder.Default
     @Column(name = "average_rating")
     private Double averageRating = 0.0;
 
-    @Builder.Default
     @Column(name = "rating_count")
     private Long ratingCount = 0L;
 

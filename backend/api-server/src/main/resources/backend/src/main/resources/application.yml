@@ -18,16 +18,24 @@ spring:
   # ✅ Redis 설정 (도커 환경 대응)
   data:
     redis:
-      # 도커로 띄울 때는 'redis'라는 서비스 이름을 사용해야 합니다.
-      # 로컬에서 그냥 실행할 때를 대비해 기본값으로 localhost를 둡니다.
       host: ${SPRING_REDIS_HOST:localhost}
       port: ${SPRING_REDIS_PORT:6379}
+      # ✅ 추가: Redis 연결 풀 설정
+      jedis:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+      timeout: 2000ms
 
   # ✅ 캐시 설정
   cache:
     type: redis
+    # ✅ 추가: 캐시 TTL 설정 (1시간)
+    redis:
+      time-to-live: 3600000
 
-# ✅ JWT 설정 (Docker Compose에서 보내주는 환경변수와 매핑)
+# ✅ JWT 설정
 jwt:
   secret: ${JWT_SECRET:my_custom_secret_key_for_commerce_web_project_123456}
   expiration: ${JWT_EXPIRATION:86400000}

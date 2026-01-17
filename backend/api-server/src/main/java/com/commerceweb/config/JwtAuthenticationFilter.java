@@ -97,7 +97,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     /**
      * [Helper Method] DB User 엔티티 -> Spring Security UserDetails 변환
-     *
      * 역할:
      * 1. DB의 Role Enum(예: SELLER)을 Spring Security가 인식하는 표준 포맷("ROLE_SELLER")으로 변환
      * 2. SecurityConfig의 .hasRole("SELLER") 설정과 매칭되도록 보장
