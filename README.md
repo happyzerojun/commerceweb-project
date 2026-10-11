@@ -17,7 +17,7 @@
 ## 🛠 기술 스택 (Tech Stack)
 - **Backend:** Java, Spring Boot, Spring Data JPA
 - **Frontend:** React
-- **Database:** MySQL
+- **Database:** PostgreSQL
 - **Infra & DevOps:** Docker, CI/CD, GitHub (PR & 형상관리)
 
 ---
