@@ -15,7 +15,7 @@ import java.util.Date;
 public class JwtProvider {
 
     // ✅ 환경 변수를 읽어오되, 만약 값이 없으면 뒤의 긴 문자열을 기본값으로 사용하도록 강제 통일합니다.
-    @Value("${jwt.secret:my_custom_secret_key_for_commerce_web_project_123456}")
+    @Value("${jwt.secret}")
     private String jwtSecret;
 
     @Value("${jwt.expiration:86400000}")

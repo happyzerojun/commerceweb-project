@@ -94,7 +94,7 @@ class ProductServiceTest {
                 .averageRating(4.8)
                 .build();
 
-        when(productRepository.findAllByOrderByAverageRatingDesc())
+        when(productRepository.findTop10ByOrderByAverageRatingDescViewCountDesc())
                 .thenReturn(List.of(topProduct));
 
         // When
@@ -103,7 +103,7 @@ class ProductServiceTest {
         // Then
         assertEquals(1, products.size());
         assertEquals(4.8, products.get(0).getAverageRating());
-        verify(productRepository, times(1)).findAllByOrderByAverageRatingDesc();
+        verify(productRepository, times(1)).findTop10ByOrderByAverageRatingDescViewCountDesc();
     }
 
     @Test

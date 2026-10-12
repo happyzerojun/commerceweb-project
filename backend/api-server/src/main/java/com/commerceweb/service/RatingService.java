@@ -29,7 +29,7 @@ public class RatingService {
      * 상품 평가 생성 또는 업데이트
      */
     @Transactional
-    @CacheEvict(value = "recommendations", key = "#userId")
+    @CacheEvict(value = "recommendations", allEntries = true)
     public Rating rateProduct(Long userId, Long productId, Integer score, String review) {
         log.info("⭐ 상품 평가: userId={}, productId={}, score={}", userId, productId, score);
 
@@ -77,7 +77,7 @@ public class RatingService {
      * 평가 삭제
      */
     @Transactional
-    @CacheEvict(value = "recommendations", key = "#userId")
+    @CacheEvict(value = "recommendations", allEntries = true)
     public void deleteRating(Long userId, Long ratingId) {
         log.info("🗑️ 평가 삭제");
 

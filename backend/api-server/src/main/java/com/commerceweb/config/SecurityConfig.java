@@ -73,7 +73,7 @@ public class SecurityConfig {
                         .requestMatchers("/signup").permitAll() // 회원가입
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll() // 상품 목록/상세 조회
                         .requestMatchers("/api/auth/**").permitAll() // 로그인/회원가입 API
-                        .requestMatchers("/api/sales/**").permitAll() // 판매 관련 (추후 권한 조정 가능)
+                        .requestMatchers("/api/sales/**").hasAnyRole("SELLER", "ADMIN") // 판매 통계는 판매자/관리자만
                         .requestMatchers("/api/reviews/**").permitAll() // 리뷰 조회 (작성은 컨트롤러 내부에서 체크)
 
                         // ✅ 인증된 사용자만 접근 가능한 API (주문 등)
