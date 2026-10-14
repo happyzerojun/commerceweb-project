@@ -11,7 +11,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findByUserOrderByOrderDateDesc(User user);
 
-    @Query("SELECT new com.commerceweb.dto.SalesStatDto(p.name, CAST(SUM(o.totalPrice) AS long), CAST(SUM(o.quantity) AS long), COALESCE(p.averageRating, 0.0)) FROM Order o JOIN o.product p GROUP BY p.name, p.averageRating")
+    @Query("SELECT new com.commerceweb.dto.SalesStatDto(p.name, CAST(SUM(o.totalPrice) AS long), CAST(SUM(o.quantity) AS long), COALESCE(p.averageRating, 0.0)) FROM Order o JOIN o.product p GROUP BY p.id, p.name, p.averageRating ORDER BY SUM(o.totalPrice) DESC")
+    // 상품 식별자(p.id) 기준으로 묶는다. 이름 기준이면 이름이 같은 다른 상품의 매출이 합쳐졌다 (TS-05)
     List<SalesStatDto> getSalesStatistics();
 
     // 필드명이 user와 product이므로 이에 맞게 이름을 수정합니다.

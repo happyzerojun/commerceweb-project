@@ -29,7 +29,8 @@ public interface RatingRepository extends JpaRepository<Rating, Long> {
             "JOIN ratings r2 ON r1.product_id = r2.product_id " +
             "WHERE r1.user_id = :userId AND r2.user_id != :userId " +
             "GROUP BY r2.user_id " +
-            "ORDER BY common_count DESC",
+            "ORDER BY common_count DESC, r2.user_id " +
+            "LIMIT 5",   // 서비스에서 상위 K=5명만 쓰므로 DB에서 잘라 전송량을 줄인다
             nativeQuery = true)
     List<Object[]> findSimilarUsers(Long userId, List<Long> ratedProductIds);
 
