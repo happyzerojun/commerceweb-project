@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 // 환경 변수에서 API URL을 가져오거나 기본값 사용 (Vite 환경 기준)
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// 기본값은 같은 출처('') — 운영은 Nginx가 /api/ 를 백엔드로 넘기고, 개발은 Vite 프록시가 넘긴다.
+// 예전 기본값 'http://localhost:8080'은 배포된 화면을 연 사람의 PC를 호출하는 문제가 있었다 (TS-04)
+const BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
 const api = axios.create({
     baseURL: BASE_URL,
