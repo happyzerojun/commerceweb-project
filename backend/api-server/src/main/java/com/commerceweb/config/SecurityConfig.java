@@ -74,12 +74,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll() // 상품 목록/상세 조회
                         .requestMatchers("/api/auth/**").permitAll() // 로그인/회원가입 API
                         .requestMatchers("/api/sales/**").hasAnyRole("SELLER", "ADMIN") // 판매 통계는 판매자/관리자만
-                        .requestMatchers("/api/reviews/**").permitAll() // 리뷰 조회 (작성은 컨트롤러 내부에서 체크)
+                        .requestMatchers(HttpMethod.GET, "/api/reviews/**").permitAll() // 리뷰 조회만 공개. 작성·수정·삭제는 아래 anyRequest().authenticated() (TS-06)
 
                         // ✅ 인증된 사용자만 접근 가능한 API (주문 등)
                         // hasAnyRole: "ROLE_" 접두사가 자동으로 붙어서 체크됨 (예: ROLE_CUSTOMER)
                         // 💥 중요: SELLER 권한도 주문 API를 쓸 수 있도록 추가함 (403 해결)
-                        .requestMatchers("/api/orders/**").hasAnyRole("CUSTOMER", "USER", "ADMIN", "SELLER")
+                        .requestMatchers("/api/orders/**").hasAnyRole("CUSTOMER", "SELLER", "ADMIN")
 
                         // ✅ 그 외 모든 요청은 인증 필요
                         .anyRequest().authenticated()
