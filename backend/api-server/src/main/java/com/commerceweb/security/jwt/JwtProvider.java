@@ -46,14 +46,13 @@ public class JwtProvider {
                     .build()
                     .parseClaimsJws(token);
             return true;
-        } catch (SecurityException | MalformedJwtException e) {
-            log.error("잘못된 JWT 서명입니다: {}", e.getMessage());
         } catch (ExpiredJwtException e) {
-            log.error("만료된 JWT 토큰입니다: {}", e.getMessage());
-        } catch (UnsupportedJwtException e) {
-            log.error("지원되지 않는 JWT 토큰입니다: {}", e.getMessage());
-        } catch (IllegalArgumentException e) {
-            log.error("JWT 토큰이 비어있습니다: {}", e.getMessage());
+            // 만료는 정상 흐름이므로 ERROR가 아니라 DEBUG로 남긴다
+            log.debug("만료된 JWT 토큰입니다: {}", e.getMessage());
+        } catch (JwtException | IllegalArgumentException e) {
+            // 서명 위조(SignatureException), 형식 오류, 미지원 토큰 등 jjwt 예외 전부.
+            // 이전에는 java.lang.SecurityException을 잡고 있어 서명 위조 예외가 필터 밖으로 새어 500이 났다.
+            log.warn("유효하지 않은 JWT 토큰입니다: {}", e.getClass().getSimpleName());
         }
         return false;
     }
