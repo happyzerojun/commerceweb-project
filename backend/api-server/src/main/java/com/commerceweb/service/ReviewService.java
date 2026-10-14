@@ -1,5 +1,6 @@
 package com.commerceweb.service;
 
+
 import com.commerceweb.dto.ReviewDto;
 import com.commerceweb.entity.*;
 import com.commerceweb.repository.*;
@@ -22,6 +23,7 @@ public class ReviewService {
 
     @Transactional
     public ReviewDto createReview(ReviewDto reviewDto) {
+        validateRating(reviewDto.getRating());
         // 1. 주문 정보 조회
         Order order = orderRepository.findById(reviewDto.getOrderId())
                 .orElseThrow(() -> new RuntimeException("주문 내역을 찾을 수 없습니다."));
@@ -112,11 +114,22 @@ public class ReviewService {
             throw new AccessDeniedException("본인의 리뷰만 삭제할 수 있습니다.");
         }
 
+        Product product = review.getProduct();
         reviewRepository.delete(review);
+        // 삭제 후에도 상품 평균 평점·리뷰 수를 다시 계산한다 (이전에는 삭제해도 평점이 그대로 남았다)
+        updateProductRating(product);
+    }
+
+    /** 별점은 1~5 정수만 허용 (이전에는 범위 검증이 없어 100점도 저장됐다) */
+    private static void validateRating(Integer rating) {
+        if (rating == null || rating < 1 || rating > 5) {
+            throw new IllegalArgumentException("별점은 1~5 사이 정수여야 합니다.");
+        }
     }
 
     @Transactional
     public ReviewDto updateReview(Long reviewId, String content, Integer rating, Long currentUserId) {
+        validateRating(rating);
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new RuntimeException("리뷰를 찾을 수 없습니다."));
 

@@ -128,8 +128,8 @@ public class RecommendationService {
             if (!similarUsers.isEmpty()) {
                 log.debug("유사 사용자 목록 (상위 5개):");
                 for (int i = 0; i < Math.min(5, similarUsers.size()); i++) {
-                    Long uId = (Long) similarUsers.get(i)[0];
-                    Long commonCount = (Long) similarUsers.get(i)[1];
+                    Long uId = ((Number) similarUsers.get(i)[0]).longValue();
+                    Long commonCount = ((Number) similarUsers.get(i)[1]).longValue();
                     log.debug("  - userId: {}, 공통 평가 수: {}", uId, commonCount);
                 }
             }
@@ -150,15 +150,18 @@ public class RecommendationService {
         // 3단계: 유사 사용자들의 평점 데이터 수집 및 예상 평점 계산
         // ==========================================
         log.info("📍 3단계: 유사 사용자 평점 데이터 수집 및 분석 시작...");
-        Map<Long, Double> productScores = new HashMap<>();
+        // 유사도(공통 평가 수) 가중 평균: score = Σ(평점 × 가중치) / Σ(가중치)
+        // 이전 구현 (old + new) / 2 는 입력 순서에 따라 결과가 달라졌다 (5,5,1 → 3.0 / 1,5,5 → 4.5)
+        Map<Long, double[]> weightedSums = new HashMap<>();   // [Σ(평점×가중치), Σ가중치]
+        Set<Long> ratedProductIdSet = new HashSet<>(ratedProductIds);   // contains O(1)
         int similarUserCount = Math.min(5, similarUsers.size());
 
         log.info("분석할 유사 사용자 수 (상위 K=5): {}", similarUserCount);
 
         try {
             for (int i = 0; i < similarUserCount; i++) {
-                Long similarUserId = (Long) similarUsers.get(i)[0];
-                Long commonCount = (Long) similarUsers.get(i)[1];
+                Long similarUserId = ((Number) similarUsers.get(i)[0]).longValue();
+                Long commonCount = ((Number) similarUsers.get(i)[1]).longValue();
 
                 log.debug("유사 사용자 분석 중 ({}/{}): userId={}, 공통 평가 수={}",
                         i + 1, similarUserCount, similarUserId, commonCount);
@@ -175,27 +178,21 @@ public class RecommendationService {
                     Double ratingScore = rating.getScore().doubleValue();
 
                     // 이미 평가한 상품 제외
-                    if (ratedProductIds.contains(productId)) {
+                    if (ratedProductIdSet.contains(productId)) {
                         log.debug("    - 스킵 (이미 평가): productId={}", productId);
                         continue;
                     }
 
-                    // 점수 계산
-                    Double previousScore = productScores.get(productId);
-                    productScores.merge(
-                            productId,
-                            ratingScore,
-                            (oldVal, newVal) -> (oldVal + newVal) / 2
-                    );
-
-                    if (previousScore == null) {
-                        log.debug("    - 신규 상품 추가: productId={}, 평점={}", productId, ratingScore);
-                    }
+                    // 점수 누적 (공통 평가 수를 가중치로 사용)
+                    double weight = commonCount == null ? 1.0 : commonCount.doubleValue();
+                    double[] acc = weightedSums.computeIfAbsent(productId, k -> new double[2]);
+                    acc[0] += ratingScore * weight;
+                    acc[1] += weight;
                     productsAdded++;
                 }
                 log.debug("  📊 해당 사용자로부터 {} 개 상품 점수 업데이트", productsAdded);
             }
-            log.info("✅ 3단계 완료 - 총 {} 개의 추천 후보 상품 발견", productScores.size());
+            log.info("✅ 3단계 완료 - 총 {} 개의 추천 후보 상품 발견", weightedSums.size());
         } catch (Exception e) {
             log.error("❌ 3단계 실패 - 평점 데이터 수집 에러: {}", e.getMessage());
             log.error("스택 트레이스: ", e);
@@ -212,8 +209,12 @@ public class RecommendationService {
             long startTime = System.currentTimeMillis();
 
             // 예상 평점 기준 정렬
+            Map<Long, Double> productScores = new HashMap<>();
+            weightedSums.forEach((id, acc) -> productScores.put(id, acc[0] / acc[1]));
+
             recommendedProductIds = productScores.entrySet().stream()
-                    .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                    .sorted(Map.Entry.<Long, Double>comparingByValue().reversed()
+                            .thenComparing(Map.Entry.comparingByKey()))      // 동점일 때 결과가 흔들리지 않게
                     .limit(limit)
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toList());
@@ -225,7 +226,13 @@ public class RecommendationService {
 
             // 상품 상세 정보 조회
             long dbStartTime = System.currentTimeMillis();
-            List<Product> recommendations = productRepository.findByIdIn(recommendedProductIds);
+            // IN 조회는 결과 순서를 보장하지 않으므로, 점수순 ID 목록 기준으로 순서를 복원한다
+            Map<Long, Product> productById = productRepository.findByIdIn(recommendedProductIds).stream()
+                    .collect(Collectors.toMap(Product::getId, p -> p));
+            List<Product> recommendations = recommendedProductIds.stream()
+                    .map(productById::get)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
             long dbDuration = System.currentTimeMillis() - dbStartTime;
 
             log.info("✅ 상품 상세 정보 조회 완료 ({}ms) - {} 개", dbDuration, recommendations.size());
