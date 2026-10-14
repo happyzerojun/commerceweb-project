@@ -106,6 +106,8 @@ flowchart TD
 
 ## 🔧 트러블슈팅
 
+> 셀프 코드 리뷰로 찾은 버그(JWT 위조 토큰 500, 추천 순위 뒤섞임, Nginx 경로, 판매 통계 집계 등)와 해결 과정은 [`docs/troubleshooting.md`](docs/troubleshooting.md)에 정리했습니다. PR마다 CI(`.github/workflows/ci.yml`)가 테스트를 실행합니다.
+
 | 문제 | 원인 | 해결 |
 | --- | --- | --- |
 | 배포 환경에서 API 호출이 404 | 프론트엔드 호출 경로와 백엔드 매핑 경로 불일치 | 모든 API에 `/api` 접두사를 통일하고 Nginx 리버스 프록시 경로와 맞춤 |
