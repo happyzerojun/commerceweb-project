@@ -9,6 +9,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.EnumSet;
+import java.util.Set;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -18,10 +21,19 @@ public class AuthService {
     private final BCryptPasswordEncoder passwordEncoder;
 
     /**
-     * ✅ 회원가입 로직 (role 파라미터 추가 완료)
+     * 회원가입으로 스스로 고를 수 있는 역할 화이트리스트.
+     * 판매자 가입은 기능상 필요(판매 통계 화면)해서 SELLER만 허용하고, ADMIN은 어떤 요청으로도 만들 수 없다.
+     * 이전에는 요청 본문의 role을 그대로 저장해 {"role":"ADMIN"} 한 줄로 관리자 계정을 만들 수 있었다(권한 상승).
+     * 관리자 계정은 운영자가 DB에서 직접 지정한다.
+     */
+    static final Set<UserRole> SELF_SIGNUP_ROLES = EnumSet.of(UserRole.CUSTOMER, UserRole.SELLER);
+
+    /**
+     * ✅ 회원가입 로직
+     * @param requestedRole 클라이언트가 보낸 역할. 신뢰하지 않고 화이트리스트로 걸러 저장한다 (CUSTOMER/SELLER 외에는 CUSTOMER)
      */
     @Transactional
-    public User signup(String email, String rawPassword, String name, UserRole role) { // ✅ role 인자 추가
+    public User signup(String email, String rawPassword, String name, UserRole requestedRole) {
 
         // 1️⃣ 이메일 중복 확인
         if (userRepository.existsByEmail(email)) {
@@ -39,15 +51,21 @@ public class AuthService {
         user.setPassword(hashedPassword);
         user.setName(name);
 
-        // 4️⃣ 전달받은 role 설정 (CUSTOMER 또는 SELLER)
-        // ✅ 고정값 CUSTOMER에서 매개변수 role로 변경
-        user.setRole(role != null ? role : UserRole.CUSTOMER);
+        // 4️⃣ 역할 설정: 요청 값은 화이트리스트(CUSTOMER/SELLER)에 있을 때만 사용, 그 외(ADMIN 등)는 일반 사용자
+        user.setRole(resolveSignupRole(requestedRole));
+        if (requestedRole != null && requestedRole != user.getRole()) {
+            log.warn("회원가입 역할 요청 무시: email={}, requested={}, saved={}", email, requestedRole, user.getRole());
+        }
 
         // 5️⃣ 데이터베이스에 저장
         User savedUser = userRepository.save(user);
 
         log.info("✅ 회원가입 성공 및 DB 저장 완료: {}, Role: {}", savedUser.getEmail(), savedUser.getRole());
         return savedUser;
+    }
+
+    static UserRole resolveSignupRole(UserRole requestedRole) {
+        return requestedRole != null && SELF_SIGNUP_ROLES.contains(requestedRole) ? requestedRole : UserRole.CUSTOMER;
     }
 
     /**

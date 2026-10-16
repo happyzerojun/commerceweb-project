@@ -16,6 +16,7 @@
 | TS-09 | 2026-10-16 | 추천 | 유사 사용자 네이티브 쿼리에 쿼리에서 쓰지 않는 파라미터 | 해결 |
 | TS-10 | 2026-10-16 | 리뷰 | 동시 리뷰 작성 시 상품 평균 평점 Lost Update | 해결 |
 | TS-11 | 2026-10-16 | 상품 | 동시 조회 시 조회수 Lost Update | 해결 |
+| TS-12 | 2026-10-16 | 보안 | 회원가입 요청의 role로 ADMIN 계정을 만들 수 있음 (권한 상승) | 해결 |
 | 이전 | 2026-01 | — | 404 경로 불일치, 로그인 응답 role 누락, 판매자 주문 403, Redis 직렬화 실패 | README 트러블슈팅 표 참고 |
 
 ---
@@ -117,6 +118,13 @@
 - **해결:** `UPDATE Product p SET p.viewCount = COALESCE(p.viewCount, 0) + 1 WHERE p.id = :id` 원자적 증가. 행 잠금 재평가 시 `SET` 식이 최신 값으로 다시 계산되므로 정확함. 갱신 행 0건이면 상품 없음.
 - **트레이드오프:** 인기 상품은 조회마다 같은 행에 쓰기 잠금이 몰림(핫 로우). 트래픽이 커지면 Redis `INCR`로 모았다가 주기적으로 DB에 반영하는 방식이 다음 단계.
 - **재발 방지:** 50명 동시 조회 → 조회수 50, `NULL` 조회수 → 1 통합 테스트(`ProductViewCountConcurrencyTest`).
+
+### TS-12 회원가입 요청의 role로 ADMIN 계정을 만들 수 있음 (권한 상승)
+- **증상(코드 분석):** `POST /api/auth/signup`에 `{"role":"ADMIN"}`을 보내면 관리자 계정이 만들어짐. 화면은 구매자/판매자만 고르게 하지만 API는 그대로 받음.
+- **원인:** `AuthService.signup()`이 요청 본문의 `role`을 검증 없이 `user.setRole(role)`로 저장. 클라이언트 입력을 권한 결정에 그대로 사용.
+- **해결:** 스스로 고를 수 있는 역할을 화이트리스트 `{CUSTOMER, SELLER}`로 제한. 그 외(ADMIN)는 무시하고 CUSTOMER로 저장하며 경고 로그를 남김. 판매자 가입은 판매 통계 기능 때문에 유지. 관리자는 운영자가 DB에서 직접 지정.
+- **트레이드오프:** 400으로 거절하는 대신 조용히 CUSTOMER로 저장해 정상 클라이언트 흐름은 깨지지 않지만, 공격 시도는 로그로만 드러남. SELLER도 셀프 가입이라 판매자 승인 절차가 필요해지면 `PENDING_SELLER` 같은 상태를 두는 게 다음 단계.
+- **재발 방지:** `AuthServiceTest`(ADMIN 요청 → CUSTOMER 저장, 화이트리스트에 ADMIN 없음), `SignupRoleIntegrationTest`(필터 체인 → 컨트롤러 → DB 경로로 ADMIN 요청 시 응답·저장 role이 CUSTOMER).
 
 ---
 
