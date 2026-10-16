@@ -125,6 +125,7 @@
 - **원인:** 액션 메이저 v4가 Node.js 20 런타임 기준. `runs-on: ubuntu-latest`는 GitHub가 가리키는 이미지를 바꾸면 코드 변경 없이 CI 환경(JDK·도구 버전)이 바뀜.
 - **해결:** 각 액션 저장소 릴리즈 페이지에서 최신 메이저 확인 후 `actions/checkout@v7`, `actions/setup-java@v6`, `actions/setup-node@v7`로 올림(입력값 `distribution`·`java-version`·`cache`·`node-version`·`cache-dependency-path`는 그대로 호환). `runs-on: ubuntu-24.04`로 고정.
 - **트레이드오프:** 고정한 이미지는 보안 패치는 받지만 새 OS로는 자동으로 안 넘어감 → 지원 종료 공지가 오면 버전만 바꾸는 PR로 따로 올려 원인을 분리.
+- **추가로 드러난 경고:** 올린 뒤 CI annotations에 `@Builder will ignore the initializing expression entirely. If you want the initializing expression to serve as default, add @Builder.Default.` 3건(`Product.viewCount`·`averageRating`·`ratingCount`). `Product.builder()`로 만든 상품은 `= 0L` 초기값이 무시돼 `NULL`로 저장됨(TS-11에서 `COALESCE`로 막았던 원인). `@Builder.Default`를 붙여 빌더로 만들어도 0으로 시작하게 함.
 - **재발 방지:** PR CI의 annotations에 warning이 남으면 이 항목처럼 기록하고 같은 PR에서 처리.
 
 ### TS-14 상품 카드의 "평점 작성"이 받는 API 없이 저장된 척만 함, 추천 섹션 응답 형태 불일치
