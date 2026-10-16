@@ -1,14 +1,13 @@
 // frontend/src/services/authService.js
 
-import axios from 'axios';
+import api from './api';
 
-// 백엔드 API 기본 주소 (컨텍스트 패스 포함하지 않음)
-const API_URL = 'http://localhost:8080';
+// 하드코딩된 http://localhost:8080 대신 공통 axios 인스턴스(api)를 쓴다 (TS-04)
 
 export const authService = {
     signup: async (email, password, name, role) => {
         // ✅ 수정됨: /signup -> /api/auth/signup
-        return axios.post(`${API_URL}/api/auth/signup`, {
+        return api.post('/api/auth/signup', {
             email,
             password,
             name,
@@ -18,7 +17,7 @@ export const authService = {
 
     login: async (email, password) => {
         // ✅ 수정됨: /login -> /api/auth/login
-        return axios.post(`${API_URL}/api/auth/login`, {
+        return api.post('/api/auth/login', {
             email,
             password
         });

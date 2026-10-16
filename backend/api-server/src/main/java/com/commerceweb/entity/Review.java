@@ -9,6 +9,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+// 주문당 리뷰 1개를 DB가 최종 보장한다. existsByOrderId 검사만으로는 동시 요청 두 건이 모두 통과할 수 있다 (TS-06)
+// 테이블명은 기본값(review)과 같지만, 네이티브 쿼리가 이 이름에 의존하므로 명시한다
+@Table(name = "review", uniqueConstraints = @UniqueConstraint(name = "uk_review_order", columnNames = "order_id"))
 public class Review {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

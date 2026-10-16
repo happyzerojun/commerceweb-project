@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  backend:
+    name: backend (Maven test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/api-server
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: commerceweb
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: [ "5432:5432" ]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: [ "6379:6379" ]
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/commerceweb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      JWT_SECRET: ci-only-secret-key-0123456789abcdef-0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Maven test
+        shell: bash
+        run: |
+          set -o pipefail
+          chmod +x mvnw
+          ./mvnw -B test | tee mvn-test.log
+      - name: Test summary
+        if: always()
+        shell: bash
+        run: |
+          summary=$(grep -E '^\[(INFO|WARNING|ERROR)\] Tests run:' mvn-test.log | grep -v ' in ' | tail -1 || true)
+          classes=$(grep -E 'Tests run:.* in com\.' mvn-test.log | sed -E 's/.* in (com\.[^ ]+).*/\1/' | sort -u | tr '\n' ' ' || true)
+          echo "::notice title=Maven test summary::${summary} | ${classes}"
+      # 실패 원인을 PR 화면(Annotations)에서 바로 보이게: [ERROR] 줄과 실패한 테스트 리포트 요약
+      - name: Report test failures
+        if: failure()
+        shell: bash
+        run: |
+          {
+            grep -E '^\[ERROR\]' mvn-test.log | head -40 || true
+            for f in target/surefire-reports/*.txt; do
+              [ -f "$f" ] || continue
+              if grep -qE '<<< (FAILURE|ERROR)' "$f"; then
+                echo "== $(basename "$f")"
+                grep -E '<<< (FAILURE|ERROR)' -A 3 "$f" | head -20
+                grep -E '^Caused by' "$f" | tail -4
+              fi
+            done
+          } > failure-summary.txt
+          msg=$(sed -e 's/%/%25/g' -e 's/\r//g' failure-summary.txt | awk '{printf "%s%%0A", $0}' | head -c 60000)
+          echo "::error title=Maven test failures::${msg}"
+
+  frontend:
+    name: frontend (build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci && npm run build

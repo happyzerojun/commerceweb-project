@@ -24,10 +24,10 @@
 | 구분 | 기능 |
 | --- | --- |
 | **회원** | 이메일 회원가입/로그인, 가입 시 역할 선택(구매자 `CUSTOMER` / 판매자 `SELLER`), JWT 발급 |
-| **상품** | 카테고리 · 상품명 검색, 상세 조회 시 조회수 증가, 인기 상품(평점 → 조회수 순 TOP 10), 신상품(최근 등록 TOP 10) |
-| **개인화 추천** | 평가 이력 기반 사용자 협업 필터링, 신규 사용자에게는 인기 상품으로 대체 추천 |
+| **상품** | 카테고리 · 상품명 검색, 상세 조회 시 조회수 증가(DB 원자적 증가), 인기 상품(평점 → 조회수 순 TOP 10), 신상품(최근 등록 TOP 10) |
+| **개인화 추천** | 리뷰 별점 기반 사용자 협업 필터링, 신규 사용자에게는 인기 상품으로 대체 추천 |
 | **주문** | 상품 주문, 내 주문 내역, 본인 주문만 취소 |
-| **리뷰** | **실제로 주문한 상품에만** 주문 1건당 리뷰 1개 작성, 본인 리뷰만 수정/삭제, 작성 시 상품 평균 평점 갱신 |
+| **리뷰** | **실제로 주문한 상품에만** 주문 1건당 리뷰 1개 작성(DB 유니크 제약, 중복 시 409), 본인 리뷰만 수정/삭제, 작성 · 수정 · 삭제 시 상품 평균 평점을 DB 집계로 갱신 |
 | **판매 통계** | 판매자 전용 화면에서 상품별 매출액 · 판매 수량 · 평균 평점 집계 |
 
 ## 🏗 아키텍처
@@ -60,7 +60,7 @@ flowchart LR
 
 ### 1. 사용자 기반 협업 필터링 추천 ([RecommendationService](backend/api-server/src/main/java/com/commerceweb/service/RecommendationService.java))
 
-"나와 같은 상품을 많이 평가한 사람이 높게 평가한 다른 상품"을 추천합니다.
+"나와 같은 상품을 많이 평가한 사람이 높게 평가한 다른 상품"을 추천합니다. 평가 데이터는 리뷰에서 옵니다. 리뷰를 작성 · 수정 · 삭제하면 같은 트랜잭션에서 (사용자, 상품)의 최신 별점을 `ratings` 테이블에 `INSERT ... ON CONFLICT`로 반영합니다.
 
 ```mermaid
 flowchart TD
@@ -78,16 +78,19 @@ flowchart TD
   SELECT r2.user_id, COUNT(*) AS common_count
   FROM ratings r1 JOIN ratings r2 ON r1.product_id = r2.product_id
   WHERE r1.user_id = :userId AND r2.user_id != :userId
-  GROUP BY r2.user_id ORDER BY common_count DESC
+  GROUP BY r2.user_id ORDER BY common_count DESC, r2.user_id
+  LIMIT 5
   ```
 - **계산량 제한** — 유사 사용자를 상위 K=5명으로 제한해 사용자 수가 늘어도 추천 계산 비용이 일정 수준을 넘지 않게 했습니다.
 - **Cold Start 대응** — 평가 기록이 없는 신규 사용자나 유사 사용자가 없는 경우, 그리고 단계별 조회 중 예외가 나는 경우 모두 인기 상품으로 대체해 **추천 영역이 비어 보이지 않게** 했습니다.
-- **Redis 캐싱** — `@Cacheable(key = "#userId + '_' + #limit")`로 사용자별 결과를 캐싱하고, 평가가 바뀌면 추천 캐시를 비워 오래된 추천이 남지 않게 했습니다. Redis에 저장하기 위해 `Product` 엔티티에 직렬화를 적용했습니다.
+- **Redis 캐싱** — `@Cacheable(key = "#userId + '_' + #limit")`로 사용자별 결과를 캐싱합니다. 리뷰 쓰기가 **커밋된 뒤** 추천 캐시 전체를 비웁니다(작성자와 취향이 비슷한 다른 사용자의 추천도 바뀌기 때문). 캐시 매니저를 `transactionAware`로 설정해 롤백되면 지우지 않고, 전체 삭제는 `KEYS` 대신 `SCAN`으로 해 Redis를 블로킹하지 않습니다. 무효화가 빠지는 경우의 안전망으로 TTL 1시간을 둡니다. Redis에 저장하기 위해 `Product` 엔티티에 직렬화를 적용했습니다.
 - **테스트** — Mockito로 저장소를 대체해 다음 시나리오를 검증했습니다. ([RecommendationServiceTest](backend/api-server/src/test/java/com/commerceweb/service/RecommendationServiceTest.java))
   - 신규 사용자 → 인기 상품 추천
   - 이미 평가한 상품은 추천에서 제외
   - 유사 사용자가 없으면 인기 상품으로 대체
   - 카테고리 내 평점순 추천
+  - DB가 다른 순서로 돌려줘도 점수순 유지, 가중 평균이 입력 순서와 무관
+- **통합 테스트(PostgreSQL · Redis)** — 리뷰만으로 추천이 동작하는지, 리뷰 쓰기 후 캐시 무효화와 TTL, 유사 사용자 네이티브 쿼리를 실제 DB에서 검증합니다. ([RecommendationCacheIntegrationTest](backend/api-server/src/test/java/com/commerceweb/integration/RecommendationCacheIntegrationTest.java))
 
 ### 2. JWT 기반 무상태 인증과 역할 권한
 
@@ -98,13 +101,17 @@ flowchart TD
 
 ### 3. 구매 이력으로 검증하는 리뷰
 
-리뷰는 상품이 아니라 **주문에 연결**됩니다. 작성 시 서버가 ① 그 주문이 요청자 본인의 주문인지, ② 이미 리뷰를 쓴 주문인지 확인하므로, 사지 않은 상품에 리뷰를 달거나 같은 주문으로 리뷰를 반복해 평점을 조작할 수 없습니다. 리뷰가 작성 · 수정될 때마다 상품 평균 평점을 다시 계산해 인기 상품 정렬에 반영합니다.
+리뷰는 상품이 아니라 **주문에 연결**됩니다. 작성 시 서버가 ① 그 주문이 요청자 본인의 주문인지, ② 이미 리뷰를 쓴 주문인지 확인하므로, 사지 않은 상품에 리뷰를 달거나 같은 주문으로 리뷰를 반복해 평점을 조작할 수 없습니다. 사전 검사는 동시 요청에 뚫릴 수 있으므로 `review.order_id` 유니크 제약이 최종 보장하고, 위반은 409로 응답합니다.
+
+리뷰가 작성 · 수정 · 삭제될 때마다 상품 평균 평점을 다시 계산해 인기 상품 정렬에 반영합니다. 자바에서 평균을 계산해 덮어쓰면 동시 작성 시 나중 커밋이 앞선 결과를 덮으므로(Lost Update), 상품 행을 `FOR NO KEY UPDATE`로 잠근 뒤 `UPDATE products SET average_rating = (SELECT ROUND(AVG(rating), 1) ...)` 한 문장으로 DB가 직접 집계합니다. 조회수도 `view_count = view_count + 1`로 원자적으로 올립니다. 리뷰 20건 · 조회 50건을 동시에 보내는 통합 테스트로 검증합니다. ([ReviewConcurrencyIntegrationTest](backend/api-server/src/test/java/com/commerceweb/integration/ReviewConcurrencyIntegrationTest.java))
 
 ### 4. JPQL 집계로 만든 판매 통계
 
 주문 데이터를 상품 기준으로 `GROUP BY`해 매출액 · 판매 수량 · 평균 평점을 DTO로 바로 받는 JPQL 생성자 표현식을 사용했습니다. 엔티티를 모두 불러와 자바에서 합산하지 않고 DB 집계 결과만 전달합니다.
 
 ## 🔧 트러블슈팅
+
+> 셀프 코드 리뷰로 찾은 버그(JWT 위조 토큰 500, 추천 순위 뒤섞임, Nginx 경로, 판매 통계 집계, 리뷰·조회수 Lost Update, 추천 캐시 무효화 등)와 해결 과정은 [`docs/troubleshooting.md`](docs/troubleshooting.md)에 정리했습니다. PR마다 CI(`.github/workflows/ci.yml`)가 테스트를 실행합니다.
 
 | 문제 | 원인 | 해결 |
 | --- | --- | --- |
@@ -147,5 +154,5 @@ docker compose up --build   # http://localhost
 
 - **재고와 동시성 제어** — 상품에 재고 컬럼을 추가하고, 동시에 같은 상품을 주문할 때 재고가 음수가 되지 않도록 비관적 락(`SELECT … FOR UPDATE`)과 낙관적 락(`@Version`)을 비교 적용한 뒤 동시 요청 테스트로 검증
 - **주문 상태 전이** — 문자열 상태를 Enum으로 바꾸고 `결제 대기 → 결제 완료 / 실패 → 취소` 전이 규칙을 도메인 메서드로 강제, 취소 시 물리 삭제 대신 상태 변경으로 이력 보존
-- **평가 데이터 통합** — 추천은 `ratings` 테이블을, 화면의 리뷰는 `reviews` 테이블을 사용해 리뷰가 추천에 반영되지 않습니다. 평점 저장 API를 노출하거나 두 데이터를 통합해 추천 품질을 높일 예정
+- **조회수 쓰기 분산** — 조회수는 원자적 UPDATE로 정확하지만 인기 상품 한 행에 쓰기가 몰립니다. 트래픽이 커지면 Redis `INCR`로 모아 주기적으로 DB에 반영
 - **유사도 고도화** — 공통 평가 수 기반 유사도를 평점 차이까지 반영하는 코사인 유사도 / 피어슨 상관계수로 개선

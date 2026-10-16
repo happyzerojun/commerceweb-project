@@ -1,23 +1,31 @@
 package com.commerceweb.config;
 
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.cache.RedisCacheManagerBuilderCustomizer;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.cache.BatchStrategies;
+import org.springframework.data.redis.cache.RedisCacheWriter;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 
+/**
+ * Redis 캐시 설정 (TS-08).
+ * <ul>
+ *   <li>TTL: application.properties의 spring.cache.redis.time-to-live (1시간). 무효화가 누락되더라도 오래된 추천이 영원히 남지 않게 하는 안전망.</li>
+ *   <li>transactionAware: @CacheEvict/@CachePut을 트랜잭션 커밋 후에 실행한다.
+ *       커밋 전에 지우면, 그 사이 다른 요청이 아직 커밋 안 된(=옛) 데이터로 추천을 다시 계산해 캐시에 넣을 수 있고,
+ *       롤백돼도 캐시만 지워지는 불일치가 생긴다.</li>
+ *   <li>SCAN 배치 삭제: allEntries 무효화는 키 패턴 삭제다. 기본 KEYS 명령은 키가 많으면 Redis를 블로킹하므로 SCAN(1000개씩)으로 지운다.</li>
+ * </ul>
+ */
 @Configuration
-@EnableCaching  // Spring Boot가 캐시 인프라를 자동으로 구성
+@EnableCaching
 public class RedisCacheConfig {
-    // Spring Boot가 자동으로 Redis 캐시 설정을 처리합니다.
 
-    // Redis 캐시는 데이터를 빠르게 읽고 처리하기 위해 메모리에 미리 저장해두는 임시 저장소
-
-//    캐시 조회: 애플리케이션이 필요한 데이터를 먼저 캐시에서 찾습니다.
-//
-//    캐시 히트: 데이터가 캐시에 있으면 즉시 반환합니다.
-//
-//    캐시 미스: 데이터가 없으면 실제 데이터베이스에서 조회합니다.
-//
-//    캐시 저장: 데이터베이스에서 가져온 데이터를 캐시에 저장합니다(TTL 설정 가능).
-
-//    캐싱 비즈니스 로직에만 집중할 수 있고, 복잡한 Spring Bean 등록이나 설정 코드는 작성할 필요가 없습니다.
-//    이것이 Spring Boot의 "자동 설정(Auto Configuration)"의 강력함
+    @Bean
+    public RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer(RedisConnectionFactory connectionFactory) {
+        return builder -> builder
+                .cacheWriter(RedisCacheWriter.nonLockingRedisCacheWriter(connectionFactory, BatchStrategies.scan(1000)))
+                .transactionAware();
+    }
 }

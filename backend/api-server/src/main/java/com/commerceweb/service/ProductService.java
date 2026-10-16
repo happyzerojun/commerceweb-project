@@ -52,14 +52,13 @@ public class ProductService {
     public Product getProduct(Long id) {
         log.info("🔎 상품 상세 조회: id={}", id);
 
-        Product product = productRepository.findById(id)
+        // 조회수 1 증가: DB에서 원자적으로 (읽고-더하고-덮어쓰기는 동시 조회 시 증가분 유실, TS-11)
+        if (productRepository.incrementViewCount(id) == 0) {
+            throw new RuntimeException("상품을 찾을 수 없습니다: " + id);
+        }
+
+        return productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("상품을 찾을 수 없습니다: " + id));
-
-        // 조회수 1 증가
-        product.setViewCount(product.getViewCount() + 1);
-        productRepository.save(product);
-
-        return product;
     }
 
     /**

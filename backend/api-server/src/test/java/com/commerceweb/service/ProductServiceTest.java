@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -63,17 +64,18 @@ class ProductServiceTest {
     }
 
     @Test
-    @DisplayName("상품 ID로 조회하면 조회수가 1 증가한다")
+    @DisplayName("상품 상세 조회는 DB 원자적 증가 쿼리로 조회수를 올린다 (TS-11)")
     void testGetProductIncreasesViewCount() {
-        // Given
+        // Given: DB가 증가시킨 뒤의 값을 다시 읽어 온다
         Long productId = 1L;
         Product product = Product.builder()
                 .id(productId)
                 .name("Test Product")
-                .viewCount(5L)
+                .viewCount(6L)
                 .averageRating(4.0)
                 .build();
 
+        when(productRepository.incrementViewCount(productId)).thenReturn(1);
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
 
         // When
@@ -81,7 +83,18 @@ class ProductServiceTest {
 
         // Then
         assertEquals(6L, result.getViewCount());
-        verify(productRepository, times(1)).save(product);
+        verify(productRepository, times(1)).incrementViewCount(productId);
+        // 읽은 값에 +1 해서 덮어쓰지 않는다
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    @DisplayName("없는 상품이면 증가 쿼리 결과 0 → 예외")
+    void testGetProductNotFound() {
+        when(productRepository.incrementViewCount(99L)).thenReturn(0);
+
+        assertThrows(RuntimeException.class, () -> productService.getProduct(99L));
+        verify(productRepository, never()).findById(99L);
     }
 
     @Test
