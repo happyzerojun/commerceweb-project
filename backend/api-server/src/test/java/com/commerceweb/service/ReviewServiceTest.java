@@ -32,6 +32,7 @@ class ReviewServiceTest {
     @Mock ReviewRepository reviewRepository;
     @Mock ProductRepository productRepository;
     @Mock OrderRepository orderRepository;
+    @Mock RatingService ratingService;
 
     @InjectMocks ReviewService reviewService;
 
@@ -90,9 +91,10 @@ class ReviewServiceTest {
 
         reviewService.createReview(request(1L));
 
-        InOrder inOrder = inOrder(reviewRepository, productRepository);
+        InOrder inOrder = inOrder(reviewRepository, productRepository, ratingService);
         inOrder.verify(reviewRepository).saveAndFlush(any(Review.class));
         inOrder.verify(productRepository).lockForRatingUpdate(100L);
+        inOrder.verify(ratingService).syncWithReviews(1L, 100L);   // 추천용 ratings 동기화 (TS-08)
         inOrder.verify(productRepository).refreshRatingStats(100L);
         // 자바에서 계산한 평균을 엔티티로 덮어쓰지 않는다
         verify(productRepository, never()).save(any(Product.class));
@@ -106,10 +108,11 @@ class ReviewServiceTest {
 
         reviewService.deleteReview(7L, buyer);
 
-        InOrder inOrder = inOrder(reviewRepository, productRepository);
+        InOrder inOrder = inOrder(reviewRepository, productRepository, ratingService);
         inOrder.verify(reviewRepository).delete(review);
         inOrder.verify(reviewRepository).flush();
         inOrder.verify(productRepository).lockForRatingUpdate(100L);
+        inOrder.verify(ratingService).syncWithReviews(1L, 100L);
         inOrder.verify(productRepository).refreshRatingStats(100L);
     }
 

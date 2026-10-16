@@ -6,6 +6,7 @@ import com.commerceweb.entity.*;
 import com.commerceweb.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -26,8 +27,18 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
+    private final RatingService ratingService;
 
+    /*
+     * 추천 캐시 무효화 (TS-08): 리뷰 작성·수정·삭제 = 협업 필터링 입력(ratings) 변경.
+     * allEntries인 이유
+     *  - 작성자 본인뿐 아니라 "작성자와 취향이 비슷한 다른 사용자"의 추천도 바뀐다(작성자의 평점이 그들의 추천 근거).
+     *  - 캐시 키가 userId_limit 이라 한 사용자 키만 골라 지우려 해도 limit 조합을 알 수 없다.
+     *  트레이드오프: 리뷰 쓰기가 잦으면 캐시 적중률이 떨어진다 → 그때는 사용자별 버전 키나 TTL만 쓰는 방식으로 전환.
+     * 제거 시점: RedisCacheConfig에서 transactionAware로 설정해 커밋 후에 지운다(롤백되면 지우지 않음).
+     */
     @Transactional
+    @CacheEvict(value = "recommendations", allEntries = true)
     public ReviewDto createReview(ReviewDto reviewDto) {
         validateRating(reviewDto.getRating());
         // 1. 주문 정보 조회
@@ -65,8 +76,8 @@ public class ReviewService {
             throw e;
         }
 
-        // 5. 상품 평균 별점 갱신 (DB 집계 UPDATE)
-        afterReviewChanged(order.getProduct().getId());
+        // 5. 상품 평균 별점 갱신 (DB 집계 UPDATE) + 추천용 ratings 동기화
+        afterReviewChanged(order.getUser().getId(), order.getProduct().getId());
 
         return convertToDto(review);
     }
@@ -85,11 +96,12 @@ public class ReviewService {
      * 리뷰가 생기거나 바뀌거나 지워진 뒤 상품 평점을 다시 계산한다.
      * 이전 구현은 리뷰 목록을 읽어 자바에서 평균을 내고 product.save()로 덮어써서, 같은 상품에 리뷰가 동시에 달리면
      * 나중에 커밋한 쪽이 상대 리뷰가 빠진 평균으로 덮었다(Lost Update). (TS-10)
-     * 1) 상품 행 잠금으로 같은 상품의 재계산을 직렬화 → 2) DB가 AVG/COUNT를 직접 집계해 한 문장으로 갱신.
-     * 반올림(소수 1자리)은 ROUND(AVG(rating), 1)로 DB에서 한다.
+     * 1) 상품 행 잠금으로 같은 상품의 재계산을 직렬화 → 2) 추천용 ratings 동기화(TS-08)
+     * → 3) DB가 AVG/COUNT를 직접 집계해 한 문장으로 갱신. 반올림(소수 1자리)은 ROUND(AVG(rating), 1)로 DB에서 한다.
      */
-    private void afterReviewChanged(Long productId) {
+    private void afterReviewChanged(Long userId, Long productId) {
         productRepository.lockForRatingUpdate(productId);
+        ratingService.syncWithReviews(userId, productId);
         productRepository.refreshRatingStats(productId);
     }
 
@@ -117,6 +129,7 @@ public class ReviewService {
     }
 
     @Transactional
+    @CacheEvict(value = "recommendations", allEntries = true)
     public void deleteReview(Long reviewId, User user) {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new IllegalArgumentException("리뷰가 존재하지 않습니다."));
@@ -129,7 +142,7 @@ public class ReviewService {
         reviewRepository.delete(review);
         reviewRepository.flush();   // 잠금·집계 전에 DELETE를 DB에 반영해 잠금 순서를 리뷰 행 → 상품 행으로 고정
         // 삭제 후에도 상품 평균 평점·리뷰 수를 다시 계산한다 (이전에는 삭제해도 평점이 그대로 남았다)
-        afterReviewChanged(productId);
+        afterReviewChanged(user.getId(), productId);
     }
 
     static boolean isDuplicateOrderReview(DataIntegrityViolationException e) {
@@ -150,6 +163,7 @@ public class ReviewService {
     }
 
     @Transactional
+    @CacheEvict(value = "recommendations", allEntries = true)
     public ReviewDto updateReview(Long reviewId, String content, Integer rating, Long currentUserId) {
         validateRating(rating);
         Review review = reviewRepository.findById(reviewId)
@@ -165,7 +179,7 @@ public class ReviewService {
         reviewRepository.saveAndFlush(review);   // 집계가 바뀐 별점을 보도록 먼저 반영
 
         // 별점 갱신 (DB 집계 UPDATE)
-        afterReviewChanged(review.getProduct().getId());
+        afterReviewChanged(currentUserId, review.getProduct().getId());
 
         return convertToDto(review);
     }
