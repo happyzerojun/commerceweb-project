@@ -44,6 +44,13 @@ jobs:
           set -o pipefail
           chmod +x mvnw
           ./mvnw -B test | tee mvn-test.log
+      - name: Test summary
+        if: always()
+        shell: bash
+        run: |
+          summary=$(grep -E '^\[(INFO|WARNING|ERROR)\] Tests run:' mvn-test.log | grep -v ' in ' | tail -1 || true)
+          classes=$(grep -E 'Tests run:.* in com\.' mvn-test.log | sed -E 's/.* in (com\.[^ ]+).*/\1/' | sort -u | tr '\n' ' ' || true)
+          echo "::notice title=Maven test summary::${summary} | ${classes}"
       # 실패 원인을 PR 화면(Annotations)에서 바로 보이게: [ERROR] 줄과 실패한 테스트 리포트 요약
       - name: Report test failures
         if: failure()
