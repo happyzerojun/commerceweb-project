@@ -50,7 +50,7 @@ public class AuthController {
      * POST /api/auth/signup
      * 새로운 사용자를 등록하고 JWT 토큰 발급
      *
-     * @param request 회원가입 요청 데이터 (email, password, name, role)
+     * @param request 회원가입 요청 데이터 (email, password, name, role — role은 CUSTOMER/SELLER만 반영)
      * @return JWT 토큰과 사용자 정보가 포함된 AuthResponse
      */
     @PostMapping("/signup")                                        // POST 요청을 /api/auth/signup에 매핑
@@ -61,7 +61,7 @@ public class AuthController {
                     request.getEmail(),                            // 입력된 이메일
                     request.getPassword(),                         // 입력된 비밀번호
                     request.getName(),                             // 입력된 이름
-                    request.getRole()                              // SELLER 또는 CUSTOMER 역할
+                    request.getRole()                              // 희망 역할. 서비스에서 CUSTOMER/SELLER만 허용, ADMIN 등은 CUSTOMER로 저장
             );
             // authService.signup()이 다음을 처리함:
             // - 이메일 중복 체크
