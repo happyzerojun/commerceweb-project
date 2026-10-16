@@ -119,7 +119,7 @@ public class RecommendationService {
 
         try {
             long startTime = System.currentTimeMillis();
-            similarUsers = ratingRepository.findSimilarUsers(userId, ratedProductIds);
+            similarUsers = ratingRepository.findSimilarUsers(userId);
             long duration = System.currentTimeMillis() - startTime;
 
             log.info("✅ 유사 사용자 탐색 완료 ({}ms)", duration);

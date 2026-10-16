@@ -79,7 +79,7 @@ class RecommendationServiceTest {
         List<Object[]> similarUsersList = new ArrayList<>();
         similarUsersList.add(new Object[]{2L, 2}); // 사용자2가 2개 상품 공통
 
-        when(ratingRepository.findSimilarUsers(eq(userId), eq(List.of(1L, 2L, 3L))))
+        when(ratingRepository.findSimilarUsers(userId))
                 .thenReturn(similarUsersList);
 
         // 사용자2의 평가: [상품1(5), 상품4(4), 상품5(5)]
@@ -107,7 +107,7 @@ class RecommendationServiceTest {
         assertFalse(recommendations.stream()
                 .anyMatch(p -> p.getId().equals(1L)));
         verify(ratingRepository, times(1)).findRatedProductIdsByUserId(userId);
-        verify(ratingRepository, times(1)).findSimilarUsers(eq(userId), eq(List.of(1L, 2L, 3L)));
+        verify(ratingRepository, times(1)).findSimilarUsers(userId);
     }
 
     @Test
@@ -155,7 +155,7 @@ class RecommendationServiceTest {
                 .thenReturn(List.of(1L, 2L));
 
         // 유사 사용자 없음
-        when(ratingRepository.findSimilarUsers(eq(userId), eq(List.of(1L, 2L))))
+        when(ratingRepository.findSimilarUsers(userId))
                 .thenReturn(List.of());
 
         // 인기 상품으로 대체
@@ -174,7 +174,7 @@ class RecommendationServiceTest {
         // Then
         assertEquals(1, recommendations.size());
         assertEquals("Popular Fallback", recommendations.get(0).getName());
-        verify(ratingRepository, times(1)).findSimilarUsers(eq(userId), eq(List.of(1L, 2L)));
+        verify(ratingRepository, times(1)).findSimilarUsers(userId);
     }
 
     @Test
@@ -185,7 +185,7 @@ class RecommendationServiceTest {
 
         List<Object[]> similar = new ArrayList<>();
         similar.add(new Object[]{2L, 1L});
-        when(ratingRepository.findSimilarUsers(eq(userId), eq(List.of(1L)))).thenReturn(similar);
+        when(ratingRepository.findSimilarUsers(userId)).thenReturn(similar);
 
         Product low = Product.builder().id(10L).name("low").build();
         Product high = Product.builder().id(20L).name("high").build();
@@ -212,7 +212,7 @@ class RecommendationServiceTest {
         similar.add(new Object[]{2L, 1L});
         similar.add(new Object[]{3L, 1L});
         similar.add(new Object[]{4L, 1L});
-        when(ratingRepository.findSimilarUsers(eq(userId), eq(List.of(1L)))).thenReturn(similar);
+        when(ratingRepository.findSimilarUsers(userId)).thenReturn(similar);
 
         Product a = Product.builder().id(100L).build();   // 평점 5, 5, 1 → 평균 3.67
         Product b = Product.builder().id(200L).build();   // 평점 4 → 평균 4.0
