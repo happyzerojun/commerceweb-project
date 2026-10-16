@@ -6,7 +6,7 @@ public class SignupRequest {
     private String email;
     private String password;
     private String name;
-    private UserRole role; // ✅ 추가: 판매자/구매자 구분을 위한 필드
+    private UserRole role; // 희망 역할(구매자/판매자). 서버가 화이트리스트로 걸러 저장하므로 ADMIN은 무시된다
 
     // 기본 생성자
     public SignupRequest() {}
