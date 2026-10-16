@@ -41,12 +41,16 @@ public class Product implements Serializable {
     @Column(name = "category", length = 50)
     private String category;
 
+    // @Builder.Default: 없으면 빌더가 초기값을 무시해 NULL로 저장돼요(조회수 +1에서 NPE 위험, TS-11·TS-13).
+    @Builder.Default
     @Column(name = "view_count")
     private Long viewCount = 0L;
 
+    @Builder.Default
     @Column(name = "average_rating")
     private Double averageRating = 0.0;
 
+    @Builder.Default
     @Column(name = "rating_count")
     private Long ratingCount = 0L;
 

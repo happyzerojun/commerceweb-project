@@ -192,3 +192,10 @@
     font-size: var(--font-size-lg);
   }
 }
+/* 리뷰 저장 결과 안내 (TS-14) */
+.product-review-message {
+  margin-top: var(--space-8);
+  font-size: var(--font-size-sm);
+  color: var(--color-success, var(--color-primary));
+  text-align: center;
+}

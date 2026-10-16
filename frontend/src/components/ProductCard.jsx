@@ -7,15 +7,19 @@ import RatingModal from './RatingModal';
 /**
  * 개별 상품을 카드 형태로 표시하는 컴포넌트
  *
+ * "리뷰 쓰기"는 RatingModal에서 실제 리뷰 API(주문 단위)로 저장해요.
+ * 예전 onRate 콜백은 받는 백엔드 API가 없어 저장된 척만 했어요 (TS-14).
+ *
  * Props:
  * - product: 상품 객체
- * - onRate: 평점 저장 콜백 함수
+ * - onReviewed: 리뷰 저장 후 콜백 (평점·추천이 바뀌므로 부모가 다시 불러오기)
  */
-export default function ProductCard({ product, onRate }) {
+export default function ProductCard({ product, onReviewed }) {
   const [showRatingModal, setShowRatingModal] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(null);
 
   const handleOpenRatingModal = () => {
+    setMessage(null);
     setShowRatingModal(true);
   };
 
@@ -23,17 +27,10 @@ export default function ProductCard({ product, onRate }) {
     setShowRatingModal(false);
   };
 
-  const handleRateSubmit = async (score, review) => {
-    setLoading(true);
-    try {
-      await onRate(product.id, score, review);
-      setShowRatingModal(false);
-      console.log(`✅ 평점 저장 완료: ${score}점`);
-    } catch (error) {
-      console.error('❌ 평점 저장 실패:', error);
-    } finally {
-      setLoading(false);
-    }
+  const handleReviewed = (savedReview) => {
+    setShowRatingModal(false);
+    setMessage('리뷰가 등록되었습니다.');
+    onReviewed?.(savedReview);
   };
 
   return (
@@ -86,18 +83,18 @@ export default function ProductCard({ product, onRate }) {
           <button
             className="btn btn-primary"
             onClick={handleOpenRatingModal}
-            disabled={loading}
           >
-            {loading ? '평점 저장 중...' : '⭐ 평점 작성'}
+            ⭐ 리뷰 쓰기
           </button>
         </div>
+        {message && <p className="product-review-message" role="status">{message}</p>}
       </div>
 
-      {/* 평점 모달 */}
+      {/* 리뷰 작성 모달 (구매한 주문 선택 → POST /api/reviews) */}
       {showRatingModal && (
         <RatingModal
-          productName={product.name}
-          onSubmit={handleRateSubmit}
+          product={product}
+          onReviewed={handleReviewed}
           onClose={handleCloseRatingModal}
         />
       )}

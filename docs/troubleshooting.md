@@ -16,6 +16,8 @@
 | TS-09 | 2026-10-16 | 추천 | 유사 사용자 네이티브 쿼리에 쿼리에서 쓰지 않는 파라미터 | 해결 |
 | TS-10 | 2026-10-16 | 리뷰 | 동시 리뷰 작성 시 상품 평균 평점 Lost Update | 해결 |
 | TS-11 | 2026-10-16 | 상품 | 동시 조회 시 조회수 Lost Update | 해결 |
+| TS-13 | 2026-10-16 | CI | GitHub Actions Node.js 20 deprecated 경고, `ubuntu-latest` 이동 예고 | 해결 |
+| TS-14 | 2026-10-16 | 리뷰 | 상품 카드의 "평점 작성"이 받는 API 없이 저장된 척만 함, 추천 섹션 응답 형태 불일치 | 해결 (컴포넌트는 아직 어느 화면에도 연결 안 됨) |
 | TS-12 | 2026-10-16 | 보안 | 회원가입 요청의 role로 ADMIN 계정을 만들 수 있음 (권한 상승) | 해결 |
 | 이전 | 2026-01 | — | 404 경로 불일치, 로그인 응답 role 누락, 판매자 주문 403, Redis 직렬화 실패 | README 트러블슈팅 표 참고 |
 
@@ -119,6 +121,25 @@
 - **트레이드오프:** 인기 상품은 조회마다 같은 행에 쓰기 잠금이 몰림(핫 로우). 트래픽이 커지면 Redis `INCR`로 모았다가 주기적으로 DB에 반영하는 방식이 다음 단계.
 - **재발 방지:** 50명 동시 조회 → 조회수 50, `NULL` 조회수 → 1 통합 테스트(`ProductViewCountConcurrencyTest`).
 
+### TS-13 GitHub Actions Node.js 20 deprecated 경고, `ubuntu-latest` 이동 예고
+- **증상(CI annotations):** `Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-java@v4` / `setup-java v4 is deprecated and will no longer receive updates. Please migrate to actions/setup-java@v5.` / `The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026.`
+- **원인:** 액션 메이저 v4가 Node.js 20 런타임 기준. `runs-on: ubuntu-latest`는 GitHub가 가리키는 이미지를 바꾸면 코드 변경 없이 CI 환경(JDK·도구 버전)이 바뀜.
+- **해결:** 각 액션 저장소 릴리즈 페이지에서 최신 메이저 확인 후 `actions/checkout@v7`, `actions/setup-java@v6`, `actions/setup-node@v7`로 올림(입력값 `distribution`·`java-version`·`cache`·`node-version`·`cache-dependency-path`는 그대로 호환). `runs-on: ubuntu-24.04`로 고정.
+- **트레이드오프:** 고정한 이미지는 보안 패치는 받지만 새 OS로는 자동으로 안 넘어감 → 지원 종료 공지가 오면 버전만 바꾸는 PR로 따로 올려 원인을 분리.
+- **추가로 드러난 경고:** 올린 뒤 CI annotations에 `@Builder will ignore the initializing expression entirely. If you want the initializing expression to serve as default, add @Builder.Default.` 3건(`Product.viewCount`·`averageRating`·`ratingCount`). `Product.builder()`로 만든 상품은 `= 0L` 초기값이 무시돼 `NULL`로 저장됨(TS-11에서 `COALESCE`로 막았던 원인). `@Builder.Default`를 붙여 빌더로 만들어도 0으로 시작하게 함.
+- **재발 방지:** PR CI의 annotations에 warning이 남으면 이 항목처럼 기록하고 같은 PR에서 처리.
+
+### TS-14 상품 카드의 "평점 작성"이 받는 API 없이 저장된 척만 함, 추천 섹션 응답 형태 불일치
+- **증상(코드 분석):** `ProductCard`의 "⭐ 평점 작성" → `RatingModal`이 별점·리뷰를 받아 부모의 `onRate(productId, score, review)`만 호출. 이 콜백을 넘기는 화면도, 받는 백엔드 API(`RatingService.rateProduct()`를 부르는 컨트롤러, TS-08)도 없어서 실제로는 아무것도 저장되지 않음. 또 `RecommendationSection`은 `response.data`(객체 `{ products: [...] }`)를 배열처럼 써서 목록이 빈 채로 그려짐. 리뷰 입력을 "선택사항"이라 안내했지만 `review.content`는 `NOT NULL`.
+- **원인:** 초기에는 별점을 `ratings`에 직접 쓰는 설계였는데, 리뷰(주문 1건당 1개)가 평점의 단일 출처가 되면서(TS-06·TS-08) 화면 쪽 흐름만 옛 설계로 남음.
+- **해결:**
+  1. 별도 평점 API를 새로 만들지 않고 **기존 리뷰 API(`POST /api/reviews`)로 연결**. 평점 출처를 둘로 나누면 "사지 않은 상품 평가", "같은 주문 반복 평가"를 다시 막아야 해서 백엔드 규칙과 어긋남.
+  2. `RatingModal`이 `GET /api/orders/my`에서 이 상품의 내 주문을, `GET /api/reviews/product/{id}`로 이미 리뷰가 달린 주문을 확인해 **아직 리뷰를 쓰지 않은 주문만 선택지로** 보여줌. 주문이 없으면 "주문 내역 보기"(`/orders`), 모두 썼으면 "리뷰 관리로 가기"(`/review-management?productId=`)로 안내. 내용은 필수.
+  3. 서버 응답 403(남의 주문)·409(이미 작성)·400(별점 범위)은 메시지를 그대로 표시. 화면 필터는 편의일 뿐이고 최종 보장은 서버 검사와 `uk_review_order`.
+  4. 저장 후 `onReviewed` → 추천 섹션이 추천을 다시 불러옴(리뷰 저장 시 추천 캐시가 비워짐, TS-08). `response.data?.products ?? []`로 응답 형태 수정.
+- **트레이드오프:** 모달을 열 때마다 API 2번(내 주문 + 상품 리뷰). 상품 리뷰가 아주 많아지면 "내 주문 중 리뷰 가능한 것"을 서버가 바로 주는 API(`GET /api/orders/my/reviewable?productId=`)가 다음 단계.
+- **남은 일:** `ProductCard`·`RecommendationSection`은 아직 어느 화면에도 연결돼 있지 않음(상품 화면은 자체 카드 사용). 홈 화면에 추천 섹션을 붙일지, 컴포넌트를 지울지 결정 필요.
+- **재발 방지:** 화면 버튼은 실제 API를 부르는 경로가 있을 때만 둠. 콜백만 받는 컴포넌트는 콜백을 넘기는 곳과 받는 API를 함께 확인.
 ### TS-12 회원가입 요청의 role로 ADMIN 계정을 만들 수 있음 (권한 상승)
 - **증상(코드 분석):** `POST /api/auth/signup`에 `{"role":"ADMIN"}`을 보내면 관리자 계정이 만들어짐. 화면은 구매자/판매자만 고르게 하지만 API는 그대로 받음.
 - **원인:** `AuthService.signup()`이 요청 본문의 `role`을 검증 없이 `user.setRole(role)`로 저장. 클라이언트 입력을 권한 결정에 그대로 사용.
