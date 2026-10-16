@@ -38,7 +38,30 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - run: chmod +x mvnw && ./mvnw -B test
+      - name: Maven test
+        shell: bash
+        run: |
+          set -o pipefail
+          chmod +x mvnw
+          ./mvnw -B test | tee mvn-test.log
+      # 실패 원인을 PR 화면(Annotations)에서 바로 보이게: [ERROR] 줄과 실패한 테스트 리포트 요약
+      - name: Report test failures
+        if: failure()
+        shell: bash
+        run: |
+          {
+            grep -E '^\[ERROR\]' mvn-test.log | head -40 || true
+            for f in target/surefire-reports/*.txt; do
+              [ -f "$f" ] || continue
+              if grep -qE '<<< (FAILURE|ERROR)' "$f"; then
+                echo "== $(basename "$f")"
+                grep -E '<<< (FAILURE|ERROR)' -A 3 "$f" | head -20
+                grep -E '^Caused by' "$f" | tail -4
+              fi
+            done
+          } > failure-summary.txt
+          msg=$(sed -e 's/%/%25/g' -e 's/\r//g' failure-summary.txt | awk '{printf "%s%%0A", $0}' | head -c 60000)
+          echo "::error title=Maven test failures::${msg}"
 
   frontend:
     name: frontend (build)
