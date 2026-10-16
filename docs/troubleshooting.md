@@ -75,6 +75,23 @@
   - 리뷰 쓰기 메서드에 `@CacheEvict(value = "recommendations", allEntries = true)`. **allEntries인 이유:** 작성자뿐 아니라 작성자와 취향이 비슷한 다른 사용자의 추천도 바뀌고, 키가 `userId_limit`이라 한 사용자 키만 정확히 지울 수도 없음.
   - `RedisCacheManager`를 `transactionAware`로: 무효화를 **커밋 후에** 실행(커밋 전에 지우면 그 사이 요청이 옛 데이터로 다시 캐시를 채울 수 있고, 롤백돼도 캐시만 지워짐). allEntries 삭제는 `KEYS` 대신 `SCAN`(1000개씩)으로 Redis 블로킹 방지. TTL 1시간(`spring.cache.redis.time-to-live=1h`)을 안전망으로.
 - **트레이드오프:** 리뷰가 잦으면 전체 추천 캐시가 자주 비워져 적중률이 떨어짐. 그때는 사용자별 버전 키(`userId:v{n}`)나 TTL만 쓰는 방식으로 바꿀 수 있음. 커밋 직전에 시작된 추천 계산이 커밋 후 옛 결과를 넣는 좁은 경쟁은 TTL이 상한.
+- **운영 반영(1회):** 배포 전부터 있던 리뷰는 `ratings`에 없으므로 한 번 채우고, 상품 평균도 리뷰 기준으로 다시 맞춰요. 이후에는 리뷰 쓰기마다 자동 동기화돼요.
+  ```sql
+  -- 1) (사용자, 상품)별 최신 리뷰 별점으로 ratings 채우기
+  INSERT INTO ratings (user_id, product_id, score, review, created_at, updated_at)
+  SELECT DISTINCT ON (user_id, product_id) user_id, product_id, rating, content, now(), now()
+  FROM review WHERE rating IS NOT NULL
+  ORDER BY user_id, product_id, created_at DESC, id DESC
+  ON CONFLICT (user_id, product_id) DO UPDATE SET score = EXCLUDED.score, review = EXCLUDED.review, updated_at = now();
+  -- 2) 리뷰 근거가 없는 ratings 정리 (필요 시, 실행 전 SELECT로 건수 확인)
+  DELETE FROM ratings t WHERE NOT EXISTS (
+    SELECT 1 FROM review r WHERE r.user_id = t.user_id AND r.product_id = t.product_id AND r.rating IS NOT NULL);
+  -- 3) 상품 평균·개수를 리뷰 기준으로 재계산
+  UPDATE products p SET
+    average_rating = COALESCE((SELECT ROUND(AVG(r.rating), 1) FROM review r WHERE r.product_id = p.id), 0),
+    rating_count   = (SELECT COUNT(r.rating) FROM review r WHERE r.product_id = p.id);
+  ```
+  배포 직후 Redis의 `recommendations::*` 키도 한 번 비우면(또는 TTL 1시간 대기) 바로 반영돼요.
 - **재발 방지:** `RecommendationCacheIntegrationTest` — 리뷰만으로 추천이 나오는지(인기 상품 대체 경로로는 나올 수 없는 평균 3.0 상품이 추천됨), 쓰기 커밋 후 캐시 제거, 실패한 쓰기는 캐시 유지, TTL, 최신 별점 반영·삭제.
 
 ### TS-09 유사 사용자 네이티브 쿼리에 쿼리에서 쓰지 않는 파라미터
