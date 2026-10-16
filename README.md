@@ -133,7 +133,7 @@ flowchart TD
 │   └── dto/
 ├── frontend/src
 │   ├── pages/         # 홈, 상품, 주문 내역, 리뷰 관리, 판매 통계, 로그인/회원가입
-│   ├── components/    # 상품 카드, 추천 섹션, 평점 모달
+│   ├── components/    # 상품 카드, 추천 섹션, 리뷰 작성 모달(구매한 주문 선택)
 │   ├── services/      # Axios 인스턴스 · 인터셉터
 │   └── context/       # 인증 상태 (AuthContext)
 └── compose.yaml       # PostgreSQL · Redis · Backend · Frontend(Nginx)

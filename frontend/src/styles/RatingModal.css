@@ -139,6 +139,38 @@
 }
 
 /* ==========================================
+   주문 선택 · 안내 문구 (리뷰는 주문 단위, TS-14)
+   ========================================== */
+
+.order-select-label {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-8);
+}
+
+.order-select {
+  width: 100%;
+  padding: var(--space-12);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  margin-bottom: var(--space-24);
+}
+
+.modal-notice {
+  text-align: center;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-16);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+/* ==========================================
    모달 액션
    ========================================== */
 

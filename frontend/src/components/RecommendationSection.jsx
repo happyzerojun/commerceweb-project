@@ -8,10 +8,9 @@ import '../styles/RecommendationSection.css';
 /**
  * 추천 상품 섹션을 표시하는 컴포넌트
  *
- * Props:
- * - onRate: 평점 저장 콜백 함수
+ * 리뷰가 저장되면 추천 캐시가 비워지므로(TS-08) 추천을 다시 불러와요.
  */
-export default function RecommendationSection({ onRate }) {
+export default function RecommendationSection() {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,7 +34,9 @@ export default function RecommendationSection({ onRate }) {
 
       console.log(`⏱️ 추천 조회 시간: ${duration}ms`);
 
-      setRecommendations(response.data);
+      // 응답은 RecommendationResponse { products: [...] } 형태라 배열은 products에 있어요.
+      // 예전처럼 response.data를 그대로 넣으면 배열이 아니어서 목록이 아무것도 그려지지 않았어요 (TS-14)
+      setRecommendations(response.data?.products ?? []);
     } catch (err) {
       console.error('❌ 추천 조회 실패:', err);
       setError('추천 상품을 불러올 수 없습니다.');
@@ -71,7 +72,7 @@ export default function RecommendationSection({ onRate }) {
       {!loading && recommendations.length === 0 && !error && (
         <div className="empty-state">
           <p>아직 추천할 상품이 없습니다.</p>
-          <p className="empty-hint">상품에 평점을 남기면 추천이 시작됩니다!</p>
+          <p className="empty-hint">구매한 상품에 리뷰를 남기면 추천이 시작됩니다!</p>
         </div>
       )}
 
@@ -81,7 +82,7 @@ export default function RecommendationSection({ onRate }) {
             <ProductCard
               key={product.id}
               product={product}
-              onRate={onRate}
+              onReviewed={fetchRecommendations}
             />
           ))}
         </div>
