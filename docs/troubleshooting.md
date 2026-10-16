@@ -16,6 +16,7 @@
 | TS-09 | 2026-10-16 | 추천 | 유사 사용자 네이티브 쿼리에 쿼리에서 쓰지 않는 파라미터 | 해결 |
 | TS-10 | 2026-10-16 | 리뷰 | 동시 리뷰 작성 시 상품 평균 평점 Lost Update | 해결 |
 | TS-11 | 2026-10-16 | 상품 | 동시 조회 시 조회수 Lost Update | 해결 |
+| TS-13 | 2026-10-16 | CI | GitHub Actions Node.js 20 deprecated 경고, `ubuntu-latest` 이동 예고 | 해결 |
 | 이전 | 2026-01 | — | 404 경로 불일치, 로그인 응답 role 누락, 판매자 주문 403, Redis 직렬화 실패 | README 트러블슈팅 표 참고 |
 
 ---
@@ -117,6 +118,13 @@
 - **해결:** `UPDATE Product p SET p.viewCount = COALESCE(p.viewCount, 0) + 1 WHERE p.id = :id` 원자적 증가. 행 잠금 재평가 시 `SET` 식이 최신 값으로 다시 계산되므로 정확함. 갱신 행 0건이면 상품 없음.
 - **트레이드오프:** 인기 상품은 조회마다 같은 행에 쓰기 잠금이 몰림(핫 로우). 트래픽이 커지면 Redis `INCR`로 모았다가 주기적으로 DB에 반영하는 방식이 다음 단계.
 - **재발 방지:** 50명 동시 조회 → 조회수 50, `NULL` 조회수 → 1 통합 테스트(`ProductViewCountConcurrencyTest`).
+
+### TS-13 GitHub Actions Node.js 20 deprecated 경고, `ubuntu-latest` 이동 예고
+- **증상(CI annotations):** `Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-java@v4` / `setup-java v4 is deprecated and will no longer receive updates. Please migrate to actions/setup-java@v5.` / `The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026.`
+- **원인:** 액션 메이저 v4가 Node.js 20 런타임 기준. `runs-on: ubuntu-latest`는 GitHub가 가리키는 이미지를 바꾸면 코드 변경 없이 CI 환경(JDK·도구 버전)이 바뀜.
+- **해결:** 각 액션 저장소 릴리즈 페이지에서 최신 메이저 확인 후 `actions/checkout@v7`, `actions/setup-java@v6`, `actions/setup-node@v7`로 올림(입력값 `distribution`·`java-version`·`cache`·`node-version`·`cache-dependency-path`는 그대로 호환). `runs-on: ubuntu-24.04`로 고정.
+- **트레이드오프:** 고정한 이미지는 보안 패치는 받지만 새 OS로는 자동으로 안 넘어감 → 지원 종료 공지가 오면 버전만 바꾸는 PR로 따로 올려 원인을 분리.
+- **재발 방지:** PR CI의 annotations에 warning이 남으면 이 항목처럼 기록하고 같은 PR에서 처리.
 
 ---
 
