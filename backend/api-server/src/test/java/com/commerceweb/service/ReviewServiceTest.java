@@ -12,6 +12,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -80,6 +81,36 @@ class ReviewServiceTest {
                 new ConstraintViolationException("null", new SQLException("null", "23502"), "review_content_not_null")));
 
         assertThrows(DataIntegrityViolationException.class, () -> reviewService.createReview(request(1L)));
+    }
+
+    @Test
+    @DisplayName("리뷰 작성 후 상품 행을 먼저 잠그고 DB 집계로 평점을 갱신한다 (TS-10)")
+    void createLocksProductThenRefreshesStatsInDb() {
+        when(reviewRepository.existsByOrderId(10L)).thenReturn(false);
+
+        reviewService.createReview(request(1L));
+
+        InOrder inOrder = inOrder(reviewRepository, productRepository);
+        inOrder.verify(reviewRepository).saveAndFlush(any(Review.class));
+        inOrder.verify(productRepository).lockForRatingUpdate(100L);
+        inOrder.verify(productRepository).refreshRatingStats(100L);
+        // 자바에서 계산한 평균을 엔티티로 덮어쓰지 않는다
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    @DisplayName("리뷰 삭제 후에도 잠금 → 집계 순서로 평점을 다시 계산한다")
+    void deleteRefreshesStats() {
+        Review review = Review.builder().id(7L).user(buyer).product(product).order(order).rating(4).content("c").build();
+        when(reviewRepository.findById(7L)).thenReturn(Optional.of(review));
+
+        reviewService.deleteReview(7L, buyer);
+
+        InOrder inOrder = inOrder(reviewRepository, productRepository);
+        inOrder.verify(reviewRepository).delete(review);
+        inOrder.verify(reviewRepository).flush();
+        inOrder.verify(productRepository).lockForRatingUpdate(100L);
+        inOrder.verify(productRepository).refreshRatingStats(100L);
     }
 
     @Test

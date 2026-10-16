@@ -65,8 +65,8 @@ public class ReviewService {
             throw e;
         }
 
-        // 5. 상품 평균 별점 업데이트 로직 호출
-        updateProductRating(order.getProduct());
+        // 5. 상품 평균 별점 갱신 (DB 집계 UPDATE)
+        afterReviewChanged(order.getProduct().getId());
 
         return convertToDto(review);
     }
@@ -81,21 +81,16 @@ public class ReviewService {
                 .stream().map(this::convertToDto).collect(Collectors.toList());
     }
 
-    private void updateProductRating(Product product) {
-        List<Review> reviews = reviewRepository.findByProductOrderByCreatedAtDesc(product);
-
-        double average = reviews.stream()
-                .mapToInt(Review::getRating)
-                .average()
-                .orElse(0.0);
-
-        // 소수점 1자리까지 반올림
-        double roundedAverage = Math.round(average * 10.0) / 10.0;
-
-        product.setAverageRating(roundedAverage);
-        product.setRatingCount((long) reviews.size());
-
-        productRepository.save(product);
+    /**
+     * 리뷰가 생기거나 바뀌거나 지워진 뒤 상품 평점을 다시 계산한다.
+     * 이전 구현은 리뷰 목록을 읽어 자바에서 평균을 내고 product.save()로 덮어써서, 같은 상품에 리뷰가 동시에 달리면
+     * 나중에 커밋한 쪽이 상대 리뷰가 빠진 평균으로 덮었다(Lost Update). (TS-10)
+     * 1) 상품 행 잠금으로 같은 상품의 재계산을 직렬화 → 2) DB가 AVG/COUNT를 직접 집계해 한 문장으로 갱신.
+     * 반올림(소수 1자리)은 ROUND(AVG(rating), 1)로 DB에서 한다.
+     */
+    private void afterReviewChanged(Long productId) {
+        productRepository.lockForRatingUpdate(productId);
+        productRepository.refreshRatingStats(productId);
     }
 
     @Transactional(readOnly = true)
@@ -130,10 +125,11 @@ public class ReviewService {
             throw new AccessDeniedException("본인의 리뷰만 삭제할 수 있습니다.");
         }
 
-        Product product = review.getProduct();
+        Long productId = review.getProduct().getId();
         reviewRepository.delete(review);
+        reviewRepository.flush();   // 잠금·집계 전에 DELETE를 DB에 반영해 잠금 순서를 리뷰 행 → 상품 행으로 고정
         // 삭제 후에도 상품 평균 평점·리뷰 수를 다시 계산한다 (이전에는 삭제해도 평점이 그대로 남았다)
-        updateProductRating(product);
+        afterReviewChanged(productId);
     }
 
     static boolean isDuplicateOrderReview(DataIntegrityViolationException e) {
@@ -166,9 +162,10 @@ public class ReviewService {
 
         review.setContent(content);
         review.setRating(rating);
+        reviewRepository.saveAndFlush(review);   // 집계가 바뀐 별점을 보도록 먼저 반영
 
-        // 별점 갱신 로직 (기존에 만드신 메서드 활용)
-        updateProductRating(review.getProduct());
+        // 별점 갱신 (DB 집계 UPDATE)
+        afterReviewChanged(review.getProduct().getId());
 
         return convertToDto(review);
     }

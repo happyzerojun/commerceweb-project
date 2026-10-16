@@ -2,7 +2,9 @@ package com.commerceweb.repository;
 
 import com.commerceweb.entity.Product;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -42,4 +44,30 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     // ✅ ID 목록으로 상품 조회 (추천 시스템용)
     List<Product> findByIdIn(List<Long> ids);
+
+    /**
+     * 평점 재계산 전에 상품 행을 잠가 같은 상품의 리뷰 쓰기를 직렬화한다 (TS-10).
+     * <p>
+     * PostgreSQL READ COMMITTED에서 UPDATE ... SET x = (SELECT AVG ...)는 단일 문장이어도 안전하지 않다.
+     * 행 잠금을 기다린 뒤 대상 행만 최신 버전으로 다시 읽고, 서브쿼리는 문장 시작 시점 스냅샷을 그대로 쓰기 때문에
+     * 먼저 커밋된 다른 리뷰가 평균에서 빠질 수 있다. 잠금을 먼저 잡으면 다음 문장은 새 스냅샷으로 시작한다.
+     * <p>
+     * FOR UPDATE가 아니라 FOR NO KEY UPDATE인 이유: 리뷰·주문 INSERT의 FK 검사가 상품 행에 거는 FOR KEY SHARE와
+     * 충돌하지 않아, "서로 KEY SHARE를 잡은 채 FOR UPDATE를 기다리는" 교착 상태가 생기지 않는다.
+     */
+    @Query(value = "SELECT id FROM products WHERE id = :id FOR NO KEY UPDATE", nativeQuery = true)
+    Long lockForRatingUpdate(@Param("id") Long id);
+
+    /**
+     * 상품 평균 평점·평점 수를 리뷰 테이블에서 DB가 직접 집계해 한 문장으로 덮어쓴다 (TS-10).
+     * 애플리케이션에서 읽고 계산해 save()하면 동시 작성 시 나중 커밋이 앞선 결과를 덮었다(Lost Update).
+     * flushAutomatically: 같은 트랜잭션에서 아직 flush되지 않은 리뷰 변경을 집계에 포함시키기 위해.
+     */
+    @Modifying(flushAutomatically = true)
+    @Query(value = "UPDATE products SET " +
+            "average_rating = COALESCE((SELECT ROUND(AVG(r.rating), 1) FROM review r WHERE r.product_id = :id), 0), " +
+            "rating_count = (SELECT COUNT(r.rating) FROM review r WHERE r.product_id = :id), " +
+            "updated_at = now() " +
+            "WHERE id = :id", nativeQuery = true)
+    int refreshRatingStats(@Param("id") Long id);
 }
